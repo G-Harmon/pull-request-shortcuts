@@ -75,6 +75,15 @@
     return files.length - 1;
   }
 
+  // Whether the page is scrolled as far down as it can go. When true, the trailing
+  // files can never be scrolled up to the sticky line, so `v` must mark them in place.
+  function atScrollBottom() {
+    return (
+      window.innerHeight + window.scrollY >=
+      document.documentElement.scrollHeight - 2
+    );
+  }
+
   // --- Navigation ---------------------------------------------------------
   function goToFile(index) {
     const files = getViewFiles();
@@ -128,8 +137,26 @@
 
   function markViewedAndAdvance() {
     const files = getViewFiles();
-    const i = getCurrentIndex(files);
-    if (i < 0) return;
+    const cur = getCurrentIndex(files);
+    if (cur < 0) return;
+    let i = cur;
+    if (isFileViewed(files[cur])) {
+      // The file at the top is already viewed (e.g. we just marked it). Find the
+      // next unviewed file below it.
+      const next = files.findIndex((f, k) => k > cur && !isFileViewed(f));
+      if (next === -1) {
+        toast("No unviewed files below");
+        return;
+      }
+      // If we can still scroll down, reveal that file first and let the next `v`
+      // mark it — don't mark a file the user hasn't seen. Only when bottomed out,
+      // where the trailing files can't be scrolled up any further, mark in place.
+      if (!atScrollBottom()) {
+        goToFile(next);
+        return;
+      }
+      i = next;
+    }
     markFileViewed(files[i]);
     // The marked file collapses, shifting layout; wait for it to settle before
     // computing the next file's scroll position.
