@@ -56,57 +56,51 @@
     return file.querySelector(".file-header") || file;
   }
 
-  // Index of the file whose header sits nearest the top of the viewport.
+  // Files in the current view. A file filter hides non-matching files with the
+  // `hidden` attribute; in-view files are always laid out, so we can scroll to them
+  // directly. Unfiltered this is every file.
+  function getViewFiles() {
+    return getFiles().filter((f) => !f.hasAttribute("hidden"));
+  }
+
+  // Index (within the in-view list) of the file currently being read: the first
+  // file not yet fully scrolled past the sticky line. Robust to short collapsed
+  // (viewed) headers, unlike picking "the last header above the line".
   function getCurrentIndex(files) {
     if (!files.length) return -1;
-    let best = 0;
-    let bestTop = -Infinity;
-    files.forEach((file, i) => {
-      const top = fileHeader(file).getBoundingClientRect().top - STICKY_OFFSET;
-      // The current file is the last one whose header is at/above the line.
-      if (top <= 1 && top > bestTop) {
-        bestTop = top;
-        best = i;
-      }
-    });
-    // If every header is below the line, we're at the very top -> first file.
-    return best;
+    const line = STICKY_OFFSET + 1;
+    for (let i = 0; i < files.length; i++) {
+      if (files[i].getBoundingClientRect().bottom > line) return i;
+    }
+    return files.length - 1;
   }
 
   // --- Navigation ---------------------------------------------------------
   function goToFile(index) {
-    const files = getFiles();
+    const files = getViewFiles();
     if (!files.length) return;
     const i = Math.max(0, Math.min(index, files.length - 1));
     const header = fileHeader(files[i]);
-    const y = header.getBoundingClientRect().top + window.scrollY - STICKY_OFFSET;
-    window.scrollTo({ top: y, behavior: "smooth" });
+    const box = header.getBoundingClientRect();
+    if (box.height || box.width) {
+      window.scrollTo({ top: box.top + window.scrollY - STICKY_OFFSET, behavior: "smooth" });
+    } else {
+      files[i].scrollIntoView({ behavior: "smooth", block: "start" }); // defensive
+    }
     toast(`File ${i + 1} / ${files.length}`);
   }
 
   function nextFile() {
-    const files = getFiles();
-    goToFile(getCurrentIndex(files) + 1);
+    goToFile(getCurrentIndex(getViewFiles()) + 1);
   }
 
   function prevFile() {
-    const files = getFiles();
-    goToFile(getCurrentIndex(files) - 1);
+    goToFile(getCurrentIndex(getViewFiles()) - 1);
   }
 
   function isFileViewed(file) {
     const cb = file.querySelector("input.js-reviewed-checkbox");
     return !!(cb && cb.checked); // no checkbox => treated as not viewed
-  }
-
-  // Rendered in the current (possibly filtered) view. getClientRects() is empty
-  // for display:none / detached nodes and is independent of scroll position.
-  function isVisible(el) {
-    return el.getClientRects().length > 0;
-  }
-
-  function getVisibleFiles() {
-    return getFiles().filter(isVisible);
   }
 
   // Toggle a single file's "Viewed" checkbox on (if not already). Returns true
@@ -123,7 +117,7 @@
   }
 
   function firstUnviewedFile() {
-    const files = getFiles();
+    const files = getViewFiles();
     const i = files.findIndex((f) => !isFileViewed(f));
     if (i === -1) {
       toast("All files viewed");
@@ -133,15 +127,17 @@
   }
 
   function markViewedAndAdvance() {
-    const files = getFiles();
+    const files = getViewFiles();
     const i = getCurrentIndex(files);
     if (i < 0) return;
     markFileViewed(files[i]);
-    goToFile(i + 1);
+    // The marked file collapses, shifting layout; wait for it to settle before
+    // computing the next file's scroll position.
+    requestAnimationFrame(() => requestAnimationFrame(() => goToFile(i + 1)));
   }
 
   function markAllVisibleViewed() {
-    const files = getVisibleFiles();
+    const files = getViewFiles();
     if (!files.length) {
       toast("No files in view");
       return;
@@ -249,7 +245,7 @@
         firstUnviewedFile();
         break;
       case KEYS.lastFile:
-        goToFile(getFiles().length - 1);
+        goToFile(getViewFiles().length - 1);
         break;
       case KEYS.help:
         toggleHelp();
