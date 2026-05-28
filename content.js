@@ -258,7 +258,7 @@
           <tr><td><kbd>g</kbd> <kbd>f</kbd></td><td>Go to Files changed tab</td></tr>
           <tr><td><kbd>\\</kbd></td><td>Toggle this help</td></tr>
         </table>
-        <p class="prks-help__hint">Shortcuts are disabled while typing in a text field.</p>
+        <p class="prks-help__hint">Press any key to close. Shortcuts are disabled while typing in a text field.</p>
       </div>`;
     helpEl.addEventListener("click", toggleHelp);
     document.body.appendChild(helpEl);
@@ -283,6 +283,14 @@
   function onKeydown(e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (isTyping()) return;
+
+    // Help overlay open: any key closes it (and is swallowed, not acted on).
+    if (helpEl && helpEl.isConnected) {
+      toggleHelp();
+      e.preventDefault();
+      return;
+    }
+
     if (!isPrPage()) return; // inert on every page except a PR
 
     const k = e.key;
