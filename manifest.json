@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "GitHub PR Review Shortcuts",
+  "version": "1.0.0",
+  "description": "Extra keyboard shortcuts for the GitHub PR 'Files changed' review page (Joby GitHub Enterprise).",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://github.example.com/*/pull/*/files*"],
+      "js": ["content.js"],
+      "css": ["overlay.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
