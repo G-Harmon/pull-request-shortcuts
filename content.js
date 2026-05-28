@@ -11,6 +11,7 @@
     nextFile: "]",
     prevFile: "[",
     markViewed: "v",
+    markAllVisible: "V", // shift+v: mark all files in the current view viewed
     firstUnviewed: "u", // scroll to first not-yet-viewed file
     // 'g' is a chord prefix: gg = first file. Handled specially below.
     firstFile: "g", // pressed twice
@@ -84,6 +85,29 @@
     return !!(cb && cb.checked); // no checkbox => treated as not viewed
   }
 
+  // Rendered in the current (possibly filtered) view. getClientRects() is empty
+  // for display:none / detached nodes and is independent of scroll position.
+  function isVisible(el) {
+    return el.getClientRects().length > 0;
+  }
+
+  function getVisibleFiles() {
+    return getFiles().filter(isVisible);
+  }
+
+  // Toggle a single file's "Viewed" checkbox on (if not already). Returns true
+  // if it actually changed it. Clicks the label so GitHub's own handlers fire.
+  function markFileViewed(file) {
+    const checkbox = file.querySelector("input.js-reviewed-checkbox");
+    if (!checkbox || checkbox.checked) return false;
+    const label =
+      checkbox.closest("label") ||
+      file.querySelector(".js-reviewed-toggle") ||
+      checkbox;
+    label.click();
+    return true;
+  }
+
   function firstUnviewedFile() {
     const files = getFiles();
     const i = files.findIndex((f) => !isFileViewed(f));
@@ -98,16 +122,18 @@
     const files = getFiles();
     const i = getCurrentIndex(files);
     if (i < 0) return;
-    const checkbox = files[i].querySelector("input.js-reviewed-checkbox");
-    if (checkbox && !checkbox.checked) {
-      // Click the label so GitHub's own handlers (collapse, persist) fire.
-      const label =
-        checkbox.closest("label") ||
-        files[i].querySelector(".js-reviewed-toggle") ||
-        checkbox;
-      label.click();
-    }
+    markFileViewed(files[i]);
     goToFile(i + 1);
+  }
+
+  function markAllVisibleViewed() {
+    const files = getVisibleFiles();
+    if (!files.length) {
+      toast("No files in view");
+      return;
+    }
+    const n = files.reduce((c, f) => c + (markFileViewed(f) ? 1 : 0), 0);
+    toast(n ? `Marked ${n} file${n === 1 ? "" : "s"} viewed` : "Already all viewed");
   }
 
   // --- Toast + help overlay ----------------------------------------------
@@ -141,6 +167,7 @@
           <tr><td><kbd>]</kbd></td><td>Next file</td></tr>
           <tr><td><kbd>[</kbd></td><td>Previous file</td></tr>
           <tr><td><kbd>v</kbd></td><td>Mark file viewed &amp; advance</td></tr>
+          <tr><td><kbd>V</kbd></td><td>Mark all files in view viewed</td></tr>
           <tr><td><kbd>u</kbd></td><td>First not-viewed file</td></tr>
           <tr><td><kbd>g</kbd> <kbd>g</kbd></td><td>Jump to first file</td></tr>
           <tr><td><kbd>G</kbd></td><td>Jump to last file</td></tr>
@@ -197,6 +224,9 @@
         break;
       case KEYS.markViewed:
         markViewedAndAdvance();
+        break;
+      case KEYS.markAllVisible:
+        markAllVisibleViewed();
         break;
       case KEYS.firstUnviewed:
         firstUnviewedFile();
