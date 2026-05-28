@@ -11,6 +11,7 @@
     nextFile: "]",
     prevFile: "[",
     markViewed: "v",
+    firstUnviewed: "u", // scroll to first not-yet-viewed file
     // 'g' is a chord prefix: gg = first file. Handled specially below.
     firstFile: "g", // pressed twice
     lastFile: "G", // shift+g
@@ -78,6 +79,21 @@
     goToFile(getCurrentIndex(files) - 1);
   }
 
+  function isFileViewed(file) {
+    const cb = file.querySelector("input.js-reviewed-checkbox");
+    return !!(cb && cb.checked); // no checkbox => treated as not viewed
+  }
+
+  function firstUnviewedFile() {
+    const files = getFiles();
+    const i = files.findIndex((f) => !isFileViewed(f));
+    if (i === -1) {
+      toast("All files viewed");
+      return;
+    }
+    goToFile(i);
+  }
+
   function markViewedAndAdvance() {
     const files = getFiles();
     const i = getCurrentIndex(files);
@@ -125,6 +141,7 @@
           <tr><td><kbd>]</kbd></td><td>Next file</td></tr>
           <tr><td><kbd>[</kbd></td><td>Previous file</td></tr>
           <tr><td><kbd>v</kbd></td><td>Mark file viewed &amp; advance</td></tr>
+          <tr><td><kbd>u</kbd></td><td>First not-viewed file</td></tr>
           <tr><td><kbd>g</kbd> <kbd>g</kbd></td><td>Jump to first file</td></tr>
           <tr><td><kbd>G</kbd></td><td>Jump to last file</td></tr>
           <tr><td><kbd>\\</kbd></td><td>Toggle this help</td></tr>
@@ -180,6 +197,9 @@
         break;
       case KEYS.markViewed:
         markViewedAndAdvance();
+        break;
+      case KEYS.firstUnviewed:
+        firstUnviewedFile();
         break;
       case KEYS.lastFile:
         goToFile(getFiles().length - 1);

@@ -11,6 +11,7 @@ A small Chrome extension that adds keyboard-only navigation to the GitHub
 | `]` | Next file |
 | `[` | Previous file |
 | `v` | Mark current file **Viewed** and advance to the next file |
+| `u` | Jump to first not-viewed file |
 | `g` `g` | Jump to first file |
 | `G` | Jump to last file |
 | `\` | Toggle the shortcut help overlay (leaves `?` for GitHub's own help) |
