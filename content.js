@@ -1,7 +1,12 @@
 // GitHub PR Review Shortcuts — content script.
 // Adds keyboard-only navigation to the PR "Files changed" tab.
-// All DOM lookups are done lazily per keypress so the script survives
-// GitHub's Turbo/pjax soft navigation without caching stale nodes.
+//
+// Injected on every page of the host so it's already present in the document
+// before GitHub's Turbo/pjax soft navigation lands on a PR (a content script is
+// only injected on a *full* load, and soft navigation never triggers one). The
+// document-level keydown listener then survives those soft navigations. The
+// handler is gated by isPrFilesPage() so it stays inert everywhere else, and all
+// DOM lookups are done lazily per keypress so no stale nodes are cached.
 
 (function () {
   "use strict";
@@ -23,6 +28,12 @@
   const CHORD_TIMEOUT_MS = 500;
   const TOAST_MS = 1200;
 
+  // Are we currently on a PR "Files changed" page? Checked live (not cached) so
+  // it tracks Turbo soft navigation between PR tabs.
+  function isPrFilesPage() {
+    return /\/pull\/\d+\/files\b/.test(location.pathname);
+  }
+
   // --- File discovery -----------------------------------------------------
   // Primary selector matches current GitHub; fallbacks cover Enterprise drift.
   const FILE_SELECTORS = [".file", "[data-tagsearch-path]", ".js-file"];
@@ -32,9 +43,12 @@
       const els = Array.from(document.querySelectorAll(sel));
       if (els.length) return els;
     }
-    console.warn(
-      "[PR Shortcuts] No diff files found. Selectors may need updating for this GitHub version."
-    );
+    // Only a real failure when we're on a files page; silent elsewhere.
+    if (isPrFilesPage()) {
+      console.warn(
+        "[PR Shortcuts] No diff files found. Selectors may need updating for this GitHub version."
+      );
+    }
     return [];
   }
 
@@ -140,7 +154,8 @@
   let toastEl = null;
   let toastTimer = null;
   function toast(msg) {
-    if (!toastEl) {
+    // Recreate if missing or detached (Turbo replaces document.body on nav).
+    if (!toastEl || !toastEl.isConnected) {
       toastEl = document.createElement("div");
       toastEl.className = "prks-toast";
       document.body.appendChild(toastEl);
@@ -153,7 +168,8 @@
 
   let helpEl = null;
   function toggleHelp() {
-    if (helpEl) {
+    // If still on-screen, close it; a detached node (post-Turbo) counts as closed.
+    if (helpEl && helpEl.isConnected) {
       helpEl.remove();
       helpEl = null;
       return;
@@ -196,6 +212,7 @@
   let lastG = 0;
 
   function onKeydown(e) {
+    if (!isPrFilesPage()) return; // inert on every page except a PR files diff
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (isTyping()) return;
 

@@ -37,11 +37,19 @@ constant (plus `STICKY_OFFSET`, `CHORD_TIMEOUT_MS`, `TOAST_MS`).
 
 ## Notes / troubleshooting
 
+- **Injection scope:** the content script is injected on *every* `github.example.com`
+  page (`content_scripts.matches` is `https://github.example.com/*`), but it does
+  nothing unless you're on a PR **Files changed** page (gated by `isPrFilesPage()`
+  in `content.js`). This is deliberate: GitHub navigates between PR tabs with
+  Turbo/pjax *soft* navigation, which never triggers content-script injection — so
+  the script must already be present in the document. Being injected host-wide
+  means it's there no matter how you navigate into the PR, and its `document`-level
+  keydown listener survives the soft navigations.
 - The extension finds diff files via the `.file` selector (with
   `[data-tagsearch-path]` / `.js-file` fallbacks) and the "Viewed" checkbox via
   `input.js-reviewed-checkbox`. If a future GitHub Enterprise upgrade changes the
   DOM, update `FILE_SELECTORS` in `content.js`. A warning is logged to the console
-  when no files are found.
+  (only on a files page) when no files are found.
 - To support public `github.com` too, add its pattern to `content_scripts.matches`
   in `manifest.json` and re-verify the selectors there.
 
