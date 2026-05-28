@@ -14,7 +14,7 @@
     // 'g' is a chord prefix: gg = first file. Handled specially below.
     firstFile: "g", // pressed twice
     lastFile: "G", // shift+g
-    help: "?",
+    help: "\\", // backslash; '?' is left to GitHub's native shortcut help
   };
 
   const STICKY_OFFSET = 60; // px reserved for GitHub's sticky page header
@@ -127,7 +127,7 @@
           <tr><td><kbd>v</kbd></td><td>Mark file viewed &amp; advance</td></tr>
           <tr><td><kbd>g</kbd> <kbd>g</kbd></td><td>Jump to first file</td></tr>
           <tr><td><kbd>G</kbd></td><td>Jump to last file</td></tr>
-          <tr><td><kbd>?</kbd></td><td>Toggle this help</td></tr>
+          <tr><td><kbd>\\</kbd></td><td>Toggle this help</td></tr>
         </table>
         <p class="prks-help__hint">Shortcuts are disabled while typing in a text field.</p>
       </div>`;

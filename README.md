@@ -13,7 +13,7 @@ A small Chrome extension that adds keyboard-only navigation to the GitHub
 | `v` | Mark current file **Viewed** and advance to the next file |
 | `g` `g` | Jump to first file |
 | `G` | Jump to last file |
-| `?` | Toggle the shortcut help overlay |
+| `\` | Toggle the shortcut help overlay (leaves `?` for GitHub's own help) |
 
 Shortcuts are ignored while you're typing in a text field (e.g. writing a review
 comment), and they don't override GitHub's built-in shortcuts.
