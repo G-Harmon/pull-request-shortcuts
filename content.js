@@ -18,6 +18,7 @@
     prevFile: "[",
     markViewed: "v",
     markAllVisible: "V", // shift+v: mark all files in the current view viewed
+    undoMark: "b", // 'back': un-mark the last file marked viewed
     firstUnviewed: "u", // scroll to first not-yet-viewed file
     // 'g' is a chord prefix. gg = first file; g + a tab key = jump to that PR tab.
     firstFile: "g", // pressed twice
@@ -154,17 +155,60 @@
     return !!(cb && cb.checked); // no checkbox => treated as not viewed
   }
 
-  // Toggle a single file's "Viewed" checkbox on (if not already). Returns true
-  // if it actually changed it. Clicks the label so GitHub's own handlers fire.
-  function markFileViewed(file) {
+  function viewedToggle(file) {
     const checkbox = file.querySelector("input.js-reviewed-checkbox");
-    if (!checkbox || checkbox.checked) return false;
+    if (!checkbox) return null;
     const label =
       checkbox.closest("label") ||
       file.querySelector(".js-reviewed-toggle") ||
       checkbox;
-    label.click();
+    return { checkbox, label };
+  }
+
+  // Toggle a single file's "Viewed" checkbox on (if not already). Returns true if
+  // it actually changed it. Clicks the label so GitHub's own handlers fire, and
+  // records the file on the undo stack.
+  function markFileViewed(file) {
+    const t = viewedToggle(file);
+    if (!t || t.checkbox.checked) return false;
+    t.label.click();
+    if (file.id) markHistory.push(file.id);
     return true;
+  }
+
+  // Un-mark a file's "Viewed" checkbox (if set). Returns true if it changed it.
+  // Unchecking makes GitHub re-expand the diff and mark the file unviewed.
+  function unmarkFileViewed(file) {
+    const t = viewedToggle(file);
+    if (!t || !t.checkbox.checked) return false;
+    t.label.click();
+    return true;
+  }
+
+  // Undo the most recent viewed-mark the extension made: pop the last still-viewed
+  // file, un-mark it, and scroll to it. Tracking exact file ids (not a geometric
+  // "current") avoids mis-targeting among the tiny collapsed headers.
+  function undoLastMark() {
+    let el = null;
+    while (markHistory.length) {
+      const f = document.getElementById(markHistory.pop());
+      if (f && isFileViewed(f)) {
+        el = f;
+        break;
+      }
+    }
+    if (!el) {
+      toast("Nothing to undo");
+      return;
+    }
+    unmarkFileViewed(el);
+    const idx = getViewFiles().indexOf(el);
+    if (idx >= 0) {
+      // The file re-expands, shifting layout; let it settle before scrolling.
+      requestAnimationFrame(() => requestAnimationFrame(() => goToFile(idx)));
+    } else {
+      toast("Unviewed (not in current filter)");
+    }
   }
 
   function firstUnviewedFile() {
@@ -249,6 +293,7 @@
           <tr><td><kbd>[</kbd></td><td>Previous file</td></tr>
           <tr><td><kbd>v</kbd></td><td>Mark file viewed &amp; advance</td></tr>
           <tr><td><kbd>V</kbd></td><td>Mark all files in view viewed</td></tr>
+          <tr><td><kbd>b</kbd></td><td>Undo last mark (re-expand)</td></tr>
           <tr><td><kbd>u</kbd></td><td>First not-viewed file</td></tr>
           <tr><td><kbd>g</kbd> <kbd>g</kbd></td><td>Jump to first file</td></tr>
           <tr><td><kbd>G</kbd></td><td>Jump to last file</td></tr>
@@ -279,6 +324,7 @@
 
   // --- Key handling -------------------------------------------------------
   let lastG = 0;
+  const markHistory = []; // file ids the extension marked viewed (LIFO undo stack)
 
   function onKeydown(e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -347,6 +393,9 @@
         break;
       case KEYS.markAllVisible:
         markAllVisibleViewed();
+        break;
+      case KEYS.undoMark:
+        undoLastMark();
         break;
       case KEYS.firstUnviewed:
         firstUnviewedFile();
