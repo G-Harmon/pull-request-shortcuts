@@ -5,8 +5,9 @@
 // before GitHub's Turbo/pjax soft navigation lands on a PR (a content script is
 // only injected on a *full* load, and soft navigation never triggers one). The
 // document-level keydown listener then survives those soft navigations. The
-// handler is gated by isPrFilesPage() so it stays inert everywhere else, and all
-// DOM lookups are done lazily per keypress so no stale nodes are cached.
+// handler is gated by isPrPage() (tab-jump chords work on any PR tab) and the
+// file-navigation keys are further gated by isPrFilesPage(); it's inert everywhere
+// else, and all DOM lookups are done lazily per keypress so no stale nodes cached.
 
 (function () {
   "use strict";
@@ -18,9 +19,14 @@
     markViewed: "v",
     markAllVisible: "V", // shift+v: mark all files in the current view viewed
     firstUnviewed: "u", // scroll to first not-yet-viewed file
-    // 'g' is a chord prefix: gg = first file. Handled specially below.
+    // 'g' is a chord prefix. gg = first file; g + a tab key = jump to that PR tab.
     firstFile: "g", // pressed twice
     lastFile: "G", // shift+g
+    // PR tab chords (g + key), work on any PR tab:
+    tabConversation: "c", // g c
+    tabCommits: "m", // g m  (coMMits)
+    tabChecks: "k", // g k  (checKs)
+    tabFiles: "f", // g f
     help: "\\", // backslash; '?' is left to GitHub's native shortcut help
   };
 
@@ -32,6 +38,42 @@
   // it tracks Turbo soft navigation between PR tabs.
   function isPrFilesPage() {
     return /\/pull\/\d+\/files\b/.test(location.pathname);
+  }
+
+  // Any PR tab (Conversation / Commits / Checks / Files). The tab chords work here;
+  // the file-navigation shortcuts are further gated to isPrFilesPage().
+  function isPrPage() {
+    return /\/pull\/\d+/.test(location.pathname);
+  }
+
+  // --- PR tab navigation --------------------------------------------------
+  const TAB_LABELS = {
+    "": "Conversation",
+    "/commits": "Commits",
+    "/checks": "Checks",
+    "/files": "Files changed",
+  };
+
+  // Jump to a PR tab by suffix ("" | "/commits" | "/checks" | "/files"). Clicks the
+  // existing tab link so GitHub does a Turbo soft-nav (no reload); falls back to a
+  // full navigation if no link is found.
+  function goToTab(suffix) {
+    const m = location.pathname.match(/^(.*\/pull\/\d+)/);
+    if (!m) return;
+    const targetPath = m[1] + suffix;
+    if (location.pathname === targetPath) {
+      toast(`Already on ${TAB_LABELS[suffix]}`);
+      return;
+    }
+    const link = Array.from(document.querySelectorAll("a[href]")).find((a) => {
+      try {
+        return new URL(a.href, location.origin).pathname === targetPath;
+      } catch (e) {
+        return false;
+      }
+    });
+    if (link) link.click();
+    else location.assign(targetPath);
   }
 
   // --- File discovery -----------------------------------------------------
@@ -210,6 +252,10 @@
           <tr><td><kbd>u</kbd></td><td>First not-viewed file</td></tr>
           <tr><td><kbd>g</kbd> <kbd>g</kbd></td><td>Jump to first file</td></tr>
           <tr><td><kbd>G</kbd></td><td>Jump to last file</td></tr>
+          <tr><td><kbd>g</kbd> <kbd>c</kbd></td><td>Go to Conversation tab</td></tr>
+          <tr><td><kbd>g</kbd> <kbd>m</kbd></td><td>Go to Commits tab</td></tr>
+          <tr><td><kbd>g</kbd> <kbd>k</kbd></td><td>Go to Checks tab</td></tr>
+          <tr><td><kbd>g</kbd> <kbd>f</kbd></td><td>Go to Files changed tab</td></tr>
           <tr><td><kbd>\\</kbd></td><td>Toggle this help</td></tr>
         </table>
         <p class="prks-help__hint">Shortcuts are disabled while typing in a text field.</p>
@@ -235,26 +281,52 @@
   let lastG = 0;
 
   function onKeydown(e) {
-    if (!isPrFilesPage()) return; // inert on every page except a PR files diff
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (isTyping()) return;
+    if (!isPrPage()) return; // inert on every page except a PR
 
     const k = e.key;
 
-    // 'g' chord: two g's within the timeout => first file.
-    if (k === KEYS.firstFile) {
-      const now = Date.now();
-      if (now - lastG < CHORD_TIMEOUT_MS) {
-        lastG = 0;
-        goToFile(0);
+    // --- 'g'-prefix chords (work on any PR tab) ---
+    const gFresh = lastG && Date.now() - lastG < CHORD_TIMEOUT_MS;
+    if (gFresh) {
+      lastG = 0;
+      // gg = first file (Files page only); g + tab key = jump to that PR tab.
+      if (k === KEYS.firstFile) {
+        if (isPrFilesPage()) goToFile(0);
         e.preventDefault();
-      } else {
-        lastG = now;
+        return;
       }
+      if (k === KEYS.tabFiles) {
+        goToTab("/files");
+        e.preventDefault();
+        return;
+      }
+      if (k === KEYS.tabConversation) {
+        goToTab("");
+        e.preventDefault();
+        return;
+      }
+      if (k === KEYS.tabCommits) {
+        goToTab("/commits");
+        e.preventDefault();
+        return;
+      }
+      if (k === KEYS.tabChecks) {
+        goToTab("/checks");
+        e.preventDefault();
+        return;
+      }
+      // unrecognized second key: fall through and handle k on its own
+    }
+    if (k === KEYS.firstFile) {
+      lastG = Date.now(); // begin chord; don't preventDefault (GitHub g-chords work)
       return;
     }
     lastG = 0;
 
+    // --- single-key file-navigation (Files page only) ---
+    if (!isPrFilesPage()) return;
     switch (k) {
       case KEYS.nextFile:
         nextFile();
