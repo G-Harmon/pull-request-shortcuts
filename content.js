@@ -16,6 +16,8 @@
   const KEYS = {
     nextFile: "]",
     prevFile: "[",
+    nextChange: "j", // jump to next change block (vim down)
+    prevChange: "k", // jump to previous change block (vim up)
     markViewed: "v",
     markAllVisible: "V", // shift+v: mark all files in the current view viewed
     undoMark: "b", // 'back': un-mark the last file marked viewed
@@ -106,6 +108,30 @@
     return getFiles().filter((f) => !f.hasAttribute("hidden"));
   }
 
+  // --- Change-block discovery --------------------------------------------
+  // Added/deleted diff lines. Long-standing GitHub classes; update if GHE drifts.
+  const CHANGED_LINE_SELECTOR = "td.blob-code-addition, td.blob-code-deletion";
+
+  function isChangedRow(tr) {
+    return !!(tr && tr.querySelector(CHANGED_LINE_SELECTOR));
+  }
+
+  // Rendered change-block start rows in document order: the first changed row of each
+  // contiguous run of changes. Rows that aren't laid out (collapsed/filtered/deferred)
+  // are skipped, so jumping naturally crosses into the next rendered file's changes.
+  function getChangeStarts() {
+    const starts = [];
+    let lastRow = null;
+    document.querySelectorAll(CHANGED_LINE_SELECTOR).forEach((cell) => {
+      const tr = cell.closest("tr");
+      if (!tr || tr === lastRow) return; // one entry per row (split diff has 2 cells)
+      lastRow = tr;
+      if (!tr.getClientRects().length) return; // not rendered
+      if (!isChangedRow(tr.previousElementSibling)) starts.push(tr);
+    });
+    return starts;
+  }
+
   // Index (within the in-view list) of the file currently being read: the first
   // file not yet fully scrolled past the sticky line. Robust to short collapsed
   // (viewed) headers, unlike picking "the last header above the line".
@@ -151,6 +177,50 @@
 
   function nextFile() {
     goToFile(getCurrentIndex(getViewFiles()) + 1);
+  }
+
+  // Top offset for landing a diff row: the page header (STICKY_OFFSET) plus the file's
+  // own sticky header, so the change lands just below it (not hidden behind it). Also
+  // used as the detection line so a just-landed change isn't re-counted as "below".
+  function changeTopOffset() {
+    const h = document.querySelector(".file-header");
+    return STICKY_OFFSET + (h ? h.getBoundingClientRect().height : 0);
+  }
+
+  function scrollRowToLine(tr) {
+    window.scrollTo({
+      top: tr.getBoundingClientRect().top + window.scrollY - changeTopOffset(),
+      behavior: "smooth",
+    });
+  }
+
+  // Jump to the start of the next (forward) / previous change block relative to the
+  // line where changes land. Crosses files; skips collapsed/filtered/unrendered ones.
+  function jumpToChange(forward) {
+    const starts = getChangeStarts();
+    if (!starts.length) {
+      toast("No changes in view");
+      return;
+    }
+    const line = changeTopOffset();
+    let target = null;
+    if (forward) {
+      target = starts.find((tr) => tr.getBoundingClientRect().top - line > 1);
+      if (!target) {
+        toast("No more changes below");
+        return;
+      }
+    } else {
+      for (const tr of starts) {
+        if (line - tr.getBoundingClientRect().top > 1) target = tr; // last one above
+        else break;
+      }
+      if (!target) {
+        toast("No more changes above");
+        return;
+      }
+    }
+    scrollRowToLine(target);
   }
 
   function prevFile() {
@@ -321,6 +391,8 @@
         <table>
           <tr><td><kbd>]</kbd></td><td>Next file</td></tr>
           <tr><td><kbd>[</kbd></td><td>Previous file</td></tr>
+          <tr><td><kbd>j</kbd></td><td>Next change</td></tr>
+          <tr><td><kbd>k</kbd></td><td>Previous change</td></tr>
           <tr><td><kbd>v</kbd></td><td>Mark file viewed &amp; advance</td></tr>
           <tr><td><kbd>V</kbd></td><td>Mark all files in view viewed</td></tr>
           <tr><td><kbd>b</kbd></td><td>Undo last mark (re-expand)</td></tr>
@@ -420,6 +492,12 @@
         break;
       case KEYS.prevFile:
         prevFile();
+        break;
+      case KEYS.nextChange:
+        jumpToChange(true);
+        break;
+      case KEYS.prevChange:
+        jumpToChange(false);
         break;
       case KEYS.markViewed:
         markViewedAndAdvance();

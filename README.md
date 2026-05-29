@@ -10,6 +10,7 @@ A small Chrome extension that adds keyboard-only navigation to the GitHub
 |-----|--------|
 | `]` | Next file |
 | `[` | Previous file |
+| `j` / `k` | Jump to next / previous change (added/deleted lines) |
 | `v` | Mark the current file **Viewed**; keeps it in view at the top and briefly flashes it (the next file follows below) |
 | `V` | Mark all files in the current (filtered) view as **Viewed** |
 | `b` | Undo the last viewed-mark (re-expands the file); one press undoes a whole `V` batch |
