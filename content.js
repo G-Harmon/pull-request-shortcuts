@@ -340,8 +340,7 @@
   }
 
   // --- Input guard --------------------------------------------------------
-  function isTyping() {
-    const el = document.activeElement;
+  function isEditable(el) {
     if (!el) return false;
     const tag = el.tagName;
     return (
@@ -352,13 +351,17 @@
     );
   }
 
+  function isTyping() {
+    return isEditable(document.activeElement);
+  }
+
   // --- Key handling -------------------------------------------------------
   let lastG = 0;
   const markHistory = []; // LIFO undo stack of batches (each a list of marked file ids)
 
   function onKeydown(e) {
+    if (isTyping()) return; // also covered by detaching on focus; this is a safety net
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (isTyping()) return;
 
     // Help overlay open: any key closes it (and is swallowed, not acted on).
     if (helpEl && helpEl.isConnected) {
@@ -442,5 +445,29 @@
     e.preventDefault();
   }
 
-  document.addEventListener("keydown", onKeydown, true);
+  // Attach the keydown listener only while no text field is focused, so we add zero
+  // per-keystroke overhead (no synchronous capture-phase hop) while composing comments.
+  // focusin/focusout fire only on focus changes, not per keystroke.
+  let keysAttached = false;
+  function attachKeys() {
+    if (!keysAttached) {
+      document.addEventListener("keydown", onKeydown, true);
+      keysAttached = true;
+    }
+  }
+  function detachKeys() {
+    if (keysAttached) {
+      document.removeEventListener("keydown", onKeydown, true);
+      keysAttached = false;
+    }
+  }
+  function syncKeyListener() {
+    if (isTyping()) detachKeys();
+    else attachKeys();
+  }
+
+  // focusin's activeElement is already the new element; after focusout it settles next frame.
+  document.addEventListener("focusin", syncKeyListener, true);
+  document.addEventListener("focusout", () => requestAnimationFrame(syncKeyListener), true);
+  syncKeyListener(); // initial state
 })();
