@@ -135,7 +135,7 @@
   }
 
   // --- Navigation ---------------------------------------------------------
-  function goToFile(index) {
+  function goToFile(index, message) {
     const files = getViewFiles();
     if (!files.length) return;
     const i = Math.max(0, Math.min(index, files.length - 1));
@@ -146,7 +146,7 @@
     } else {
       files[i].scrollIntoView({ behavior: "smooth", block: "start" }); // defensive
     }
-    toast(`File ${i + 1} / ${files.length}`);
+    toast(message || `File ${i + 1} / ${files.length}`);
   }
 
   function nextFile() {
@@ -172,15 +172,19 @@
     return { checkbox, label };
   }
 
-  // Toggle a single file's "Viewed" checkbox on (if not already). Returns true if
-  // it actually changed it. Clicks the label so GitHub's own handlers fire, and
-  // records the file on the undo stack.
+  // Toggle a single file's "Viewed" checkbox on (if not already). Returns true if it
+  // actually changed it. Clicks the label so GitHub's own handlers fire. Callers
+  // record what they marked on the undo stack (as a batch).
   function markFileViewed(file) {
     const t = viewedToggle(file);
     if (!t || t.checkbox.checked) return false;
     t.label.click();
-    if (file.id) markHistory.push(file.id);
     return true;
+  }
+
+  // Push one undo batch (a group of file ids marked together).
+  function recordMarks(ids) {
+    if (ids.length) markHistory.push(ids);
   }
 
   // Un-mark a file's "Viewed" checkbox (if set). Returns true if it changed it.
@@ -192,30 +196,41 @@
     return true;
   }
 
-  // Undo the most recent viewed-mark the extension made: pop the last still-viewed
-  // file, un-mark it, and scroll to it. Tracking exact file ids (not a geometric
-  // "current") avoids mis-targeting among the tiny collapsed headers.
+  // Undo the most recent batch the extension marked viewed: pop the last batch with
+  // any still-viewed files, un-mark them all, flash them, and scroll to the topmost.
+  // A `v` is a one-file batch; a `V` is one batch of everything it marked. Tracking
+  // exact ids (not a geometric "current") avoids mis-targeting collapsed headers.
   function undoLastMark() {
-    let el = null;
+    let ids = null;
     while (markHistory.length) {
-      const f = document.getElementById(markHistory.pop());
-      if (f && isFileViewed(f)) {
-        el = f;
+      const present = markHistory.pop().filter((id) => {
+        const f = document.getElementById(id);
+        return f && isFileViewed(f);
+      });
+      if (present.length) {
+        ids = present;
         break;
       }
     }
-    if (!el) {
+    if (!ids) {
       toast("Nothing to undo");
       return;
     }
-    unmarkFileViewed(el);
-    flash(el);
-    const idx = getViewFiles().indexOf(el);
-    if (idx >= 0) {
-      // The file re-expands, shifting layout; let it settle before scrolling.
-      requestAnimationFrame(() => requestAnimationFrame(() => goToFile(idx)));
+    const view = getViewFiles();
+    let firstIdx = Infinity;
+    ids.forEach((id) => {
+      const f = document.getElementById(id);
+      unmarkFileViewed(f);
+      flash(f);
+      const idx = view.indexOf(f);
+      if (idx >= 0 && idx < firstIdx) firstIdx = idx;
+    });
+    const msg = `Undid ${ids.length} file${ids.length === 1 ? "" : "s"}`;
+    if (firstIdx !== Infinity) {
+      // The files re-expand, shifting layout; let it settle before scrolling.
+      requestAnimationFrame(() => requestAnimationFrame(() => goToFile(firstIdx, msg)));
     } else {
-      toast("Unviewed (not in current filter)");
+      toast(msg); // none of the batch is in the current filtered view
     }
   }
 
@@ -249,7 +264,7 @@
         return;
       }
     }
-    markFileViewed(files[i]);
+    if (markFileViewed(files[i])) recordMarks(files[i].id ? [files[i].id] : []);
     flash(files[i]);
     // Keep the just-marked (now collapsed) file at the top of the view so it's clear
     // which one was marked. Let the collapse settle before scrolling.
@@ -262,8 +277,16 @@
       toast("No files in view");
       return;
     }
-    const n = files.reduce((c, f) => c + (markFileViewed(f) ? 1 : 0), 0);
-    toast(n ? `Marked ${n} file${n === 1 ? "" : "s"} viewed` : "Already all viewed");
+    const marked = [];
+    files.forEach((f) => {
+      if (markFileViewed(f) && f.id) marked.push(f.id);
+    });
+    recordMarks(marked);
+    toast(
+      marked.length
+        ? `Marked ${marked.length} file${marked.length === 1 ? "" : "s"} viewed`
+        : "Already all viewed"
+    );
   }
 
   // --- Toast + help overlay ----------------------------------------------
@@ -331,7 +354,7 @@
 
   // --- Key handling -------------------------------------------------------
   let lastG = 0;
-  const markHistory = []; // file ids the extension marked viewed (LIFO undo stack)
+  const markHistory = []; // LIFO undo stack of batches (each a list of marked file ids)
 
   function onKeydown(e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;

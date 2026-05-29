@@ -12,7 +12,7 @@ A small Chrome extension that adds keyboard-only navigation to the GitHub
 | `[` | Previous file |
 | `v` | Mark the current file **Viewed**; keeps it in view at the top and briefly flashes it (the next file follows below) |
 | `V` | Mark all files in the current (filtered) view as **Viewed** |
-| `b` | Undo the last viewed-mark (re-expands that file) |
+| `b` | Undo the last viewed-mark (re-expands the file); one press undoes a whole `V` batch |
 | `u` | Jump to first not-viewed file |
 | `g` `g` | Jump to first file |
 | `G` | Jump to last file |
