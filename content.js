@@ -118,13 +118,20 @@
     return files.length - 1;
   }
 
-  // Whether the page is scrolled as far down as it can go. When true, the trailing
-  // files can never be scrolled up to the sticky line, so `v` must mark them in place.
-  function atScrollBottom() {
-    return (
-      window.innerHeight + window.scrollY >=
-      document.documentElement.scrollHeight - 2
-    );
+  // The file's header is fully within the visible area (below the sticky header,
+  // above the viewport bottom) — i.e. you can actually see which file it is.
+  function headerOnScreen(file) {
+    const r = fileHeader(file).getBoundingClientRect();
+    return r.top >= STICKY_OFFSET - 1 && r.bottom <= window.innerHeight;
+  }
+
+  // Briefly highlight a file's header so it's obvious which file was acted on.
+  // Retriggers the CSS animation on repeated calls.
+  function flash(file) {
+    const el = fileHeader(file);
+    el.classList.remove("prks-flash");
+    void el.offsetWidth; // force reflow so the animation restarts
+    el.classList.add("prks-flash");
   }
 
   // --- Navigation ---------------------------------------------------------
@@ -202,6 +209,7 @@
       return;
     }
     unmarkFileViewed(el);
+    flash(el);
     const idx = getViewFiles().indexOf(el);
     if (idx >= 0) {
       // The file re-expands, shifting layout; let it settle before scrolling.
@@ -229,24 +237,23 @@
     if (isFileViewed(files[cur])) {
       // The file at the top is already viewed (e.g. we just marked it). Find the
       // next unviewed file below it.
-      const next = files.findIndex((f, k) => k > cur && !isFileViewed(f));
-      if (next === -1) {
+      i = files.findIndex((f, k) => k > cur && !isFileViewed(f));
+      if (i === -1) {
         toast("No unviewed files below");
         return;
       }
-      // If we can still scroll down, reveal that file first and let the next `v`
-      // mark it — don't mark a file the user hasn't seen. Only when bottomed out,
-      // where the trailing files can't be scrolled up any further, mark in place.
-      if (!atScrollBottom()) {
-        goToFile(next);
+      // Don't mark a file the user can't see; if its header isn't on screen, reveal
+      // it and let the next `v` mark it.
+      if (!headerOnScreen(files[i])) {
+        goToFile(i);
         return;
       }
-      i = next;
     }
     markFileViewed(files[i]);
-    // The marked file collapses, shifting layout; wait for it to settle before
-    // computing the next file's scroll position.
-    requestAnimationFrame(() => requestAnimationFrame(() => goToFile(i + 1)));
+    flash(files[i]);
+    // Keep the just-marked (now collapsed) file at the top of the view so it's clear
+    // which one was marked. Let the collapse settle before scrolling.
+    requestAnimationFrame(() => requestAnimationFrame(() => goToFile(i)));
   }
 
   function markAllVisibleViewed() {

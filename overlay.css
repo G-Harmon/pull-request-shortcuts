@@ -86,3 +86,18 @@
   color: #656d76;
   font-size: 12px;
 }
+
+/* Brief highlight on a file header to show which file was just marked/un-marked.
+   Inset box-shadow overlays a fading tint without fighting the header background. */
+@keyframes prks-flash-kf {
+  from {
+    box-shadow: inset 0 0 0 9999px rgba(255, 213, 0, 0.5);
+  }
+  to {
+    box-shadow: inset 0 0 0 9999px rgba(255, 213, 0, 0);
+  }
+}
+
+.prks-flash {
+  animation: prks-flash-kf 1s ease-out;
+}
