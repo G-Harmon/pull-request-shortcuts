@@ -56,6 +56,14 @@ constant (plus `STICKY_OFFSET`, `CHORD_TIMEOUT_MS`, `TOAST_MS`).
   `input.js-reviewed-checkbox`. If a future GitHub Enterprise upgrade changes the
   DOM, update `FILE_SELECTORS` in `content.js`. A warning is logged to the console
   (only on a files page) when no files are found.
+- **`u` on a large, still-loading PR:** GitHub streams a big diff in batches, so
+  the file holding the first unviewed change may not be in the DOM yet when you
+  press `u`. Rather than wrongly report "All files viewed", the extension reads the
+  total file count from the **Files** tab counter (`#files_tab_counter`), and if
+  more files are still loading it watches for the streamed-in files and jumps as
+  soon as the first unviewed one appears. If a future upgrade renames that counter,
+  the count just can't be read and `u` falls back to its old immediate behavior
+  (only sees already-loaded files) — update the selector in `expectedFileCount()`.
 - To support public `github.com` too, add its pattern to `content_scripts.matches`
   in `manifest.json` and re-verify the selectors there.
 

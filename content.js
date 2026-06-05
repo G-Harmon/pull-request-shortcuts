@@ -304,14 +304,97 @@
     }
   }
 
-  function firstUnviewedFile() {
+  // Jump to the first not-yet-viewed file in the current view. Returns false if
+  // none is present, so the caller can decide whether to wait for more to load.
+  function jumpToFirstUnviewed() {
     const files = getViewFiles();
     const i = files.findIndex((f) => !isFileViewed(f));
-    if (i === -1) {
-      toast("All files viewed");
+    if (i === -1) return false;
+    goToFile(i);
+    return true;
+  }
+
+  function firstUnviewedFile() {
+    if (jumpToFirstUnviewed()) {
+      cancelUnviewedWatch();
       return;
     }
-    goToFile(i);
+    // Nothing unviewed among the files loaded so far. On a large PR the diff
+    // streams in top-to-bottom, so the first unviewed file may simply not be
+    // rendered yet — arm a watcher to jump once it arrives. Only when the diff
+    // is fully loaded is "All files viewed" actually true.
+    if (diffStillLoading()) {
+      toast("Loading… will jump to first unviewed");
+      armUnviewedWatch();
+    } else {
+      toast("All files viewed");
+    }
+  }
+
+  // --- Deferred "first unviewed" for progressively-loading diffs ----------
+  // A large PR streams its files in top-to-bottom. If `u` is pressed before the
+  // file holding the first unviewed file has rendered, we can't find it yet. We
+  // arm a short-lived observer that retries the jump as more files arrive, and
+  // give up once the diff is fully loaded (or after a safety timeout).
+  let unviewedWatch = null; // { observer, timer } while armed
+
+  // Total files GitHub says this PR has, read from the Files tab counter. Returns
+  // null if we can't read it — then we never claim the diff is "still loading",
+  // so behavior degrades to exactly today's.
+  function expectedFileCount() {
+    const el =
+      document.querySelector("#files_tab_counter") ||
+      document.querySelector('.tabnav-tab[href*="/files"] .Counter');
+    if (!el) return null;
+    const raw = el.getAttribute("title") || el.textContent || "";
+    const n = parseInt(raw.replace(/[^\d]/g, ""), 10);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  // More files are still streaming in: fewer loaded .file nodes than the counter.
+  // getFiles() counts all loaded files (a filter only hides, doesn't remove them),
+  // so this compares loaded-vs-total regardless of any active file filter.
+  function diffStillLoading() {
+    const total = expectedFileCount();
+    return total != null && getFiles().length < total;
+  }
+
+  function cancelUnviewedWatch() {
+    if (!unviewedWatch) return;
+    unviewedWatch.observer.disconnect();
+    clearTimeout(unviewedWatch.timer);
+    unviewedWatch = null;
+  }
+
+  // Watch the diff for newly-streamed files and retry the jump each batch. Stop on
+  // success, when loading finishes with nothing unviewed, on leaving the files
+  // page, or after a safety timeout so the observer never lingers. Re-arming first
+  // tears down any existing watch (pressing `u` twice won't stack observers).
+  function armUnviewedWatch() {
+    cancelUnviewedWatch();
+    const container = document.getElementById("files") || document.body;
+    let scheduled = false;
+    const observer = new MutationObserver(() => {
+      if (scheduled) return; // coalesce a burst of additions into one check
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        if (!isPrFilesPage()) {
+          cancelUnviewedWatch();
+        } else if (jumpToFirstUnviewed()) {
+          cancelUnviewedWatch();
+        } else if (!diffStillLoading()) {
+          cancelUnviewedWatch();
+          toast("All files viewed");
+        }
+      });
+    });
+    observer.observe(container, { childList: true, subtree: true });
+    // Backstop only: the watch normally ends on success / full load / page change.
+    // This guards the pathological case where loading stalls so the observer can't
+    // linger. Generous since a very large diff can take a while to finish loading.
+    const timer = setTimeout(cancelUnviewedWatch, 30000);
+    unviewedWatch = { observer, timer };
   }
 
   function markViewedAndAdvance() {
@@ -486,6 +569,9 @@
 
     // --- single-key file-navigation (Files page only) ---
     if (!isPrFilesPage()) return;
+    // Any key other than `u` means the user moved on; drop a pending deferred jump
+    // so it can't yank the viewport away once more files finish loading.
+    if (k !== KEYS.firstUnviewed) cancelUnviewedWatch();
     switch (k) {
       case KEYS.nextFile:
         nextFile();
