@@ -324,11 +324,21 @@
     // rendered yet — arm a watcher to jump once it arrives. Only when the diff
     // is fully loaded is "All files viewed" actually true.
     if (diffStillLoading()) {
-      toast("Loading… will jump to first unviewed");
+      toast(loadingMsg(), 0); // sticky: stays until the jump fires or loading ends
       armUnviewedWatch();
     } else {
       toast("All files viewed");
     }
+  }
+
+  // Sticky progress message shown while we wait for more files to stream in, with a
+  // live loaded/total count so it's clear something is happening between jumps.
+  function loadingMsg() {
+    const total = expectedFileCount();
+    const loaded = getFiles().length;
+    return total != null
+      ? `Loading… jumping to first unviewed (${loaded} / ${total} files)`
+      : "Loading… will jump to first unviewed";
   }
 
   // --- Deferred "first unviewed" for progressively-loading diffs ----------
@@ -360,6 +370,9 @@
   }
 
   function cancelUnviewedWatch() {
+    // Drop the sticky "loading…" toast unless a real message already replaced it
+    // (success / "all viewed" paths toast before cancelling, so this no-ops there).
+    clearLoadingToast();
     if (!unviewedWatch) return;
     unviewedWatch.observer.disconnect();
     clearTimeout(unviewedWatch.timer);
@@ -386,6 +399,8 @@
         } else if (!diffStillLoading()) {
           cancelUnviewedWatch();
           toast("All files viewed");
+        } else {
+          toast(loadingMsg(), 0); // still loading: refresh the live count
         }
       });
     });
@@ -445,7 +460,13 @@
   // --- Toast + help overlay ----------------------------------------------
   let toastEl = null;
   let toastTimer = null;
-  function toast(msg) {
+  let loadingToastActive = false; // a sticky (no-timer) toast is currently showing
+
+  // Show a toast. With ms > 0 it auto-hides after ms (default). With ms === 0 it is
+  // "sticky": no hide timer, stays until replaced by another toast or explicitly
+  // cleared — used for the live "loading…" progress message. Any normal (timed)
+  // toast supersedes a sticky one, so loadingToastActive tracks only the sticky case.
+  function toast(msg, ms = TOAST_MS) {
     // Recreate if missing or detached (Turbo replaces document.body on nav).
     if (!toastEl || !toastEl.isConnected) {
       toastEl = document.createElement("div");
@@ -455,7 +476,20 @@
     toastEl.textContent = msg;
     toastEl.classList.add("prks-toast--show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toastEl.classList.remove("prks-toast--show"), TOAST_MS);
+    if (ms > 0) {
+      loadingToastActive = false;
+      toastTimer = setTimeout(() => toastEl.classList.remove("prks-toast--show"), ms);
+    } else {
+      loadingToastActive = true; // sticky
+    }
+  }
+
+  // Hide a sticky loading toast if one is up. No-op once a normal toast has
+  // superseded it (loadingToastActive is false), so it won't clear a real message.
+  function clearLoadingToast() {
+    if (!loadingToastActive) return;
+    loadingToastActive = false;
+    if (toastEl) toastEl.classList.remove("prks-toast--show");
   }
 
   let helpEl = null;
