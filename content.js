@@ -159,6 +159,22 @@
     return r.top >= STICKY_OFFSET - 1 && r.bottom <= window.innerHeight;
   }
 
+  // GitHub defers very large diffs behind a "Load diff" button instead of rendering them.
+  // Click it so the diff is ready to review. The file header is already on screen, so the
+  // diff streams in below it (content grows downward — no jarring jump). Returns true if a
+  // load was kicked off. A long-standing GitHub class; update if GHE drifts.
+  const LOAD_DIFF_SELECTOR = "button.load-diff-button, button.js-diff-load";
+  function loadDeferredDiff(file) {
+    if (!file) return false;
+    const btn = file.querySelector(LOAD_DIFF_SELECTOR);
+    // offsetParent === null means hidden/already-clicked: only act on a live button so we
+    // never double-fire while a load is in flight.
+    if (!btn || btn.offsetParent === null) return false;
+    btn.click();
+    toast("Loading diff…");
+    return true;
+  }
+
   // Briefly highlight a file's header so it's obvious which file was acted on.
   // Retriggers the CSS animation on repeated calls.
   function flash(file) {
@@ -319,6 +335,7 @@
     const i = files.findIndex((f) => !isFileViewed(f));
     if (i === -1) return false;
     goToFile(i);
+    loadDeferredDiff(files[i]); // if the target's diff is deferred behind "Load diff", load it
     return true;
   }
 
@@ -453,6 +470,7 @@
       // it and let the next `v` mark it.
       if (!headerOnScreen(files[i])) {
         goToFile(i);
+        loadDeferredDiff(files[i]); // if the revealed file's diff is deferred, load it now
         return;
       }
     }
