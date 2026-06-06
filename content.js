@@ -167,9 +167,13 @@
   function loadDeferredDiff(file) {
     if (!file) return false;
     const btn = file.querySelector(LOAD_DIFF_SELECTOR);
-    // offsetParent === null means hidden/already-clicked: only act on a live button so we
-    // never double-fire while a load is in flight.
-    if (!btn || btn.offsetParent === null) return false;
+    // Don't gate on offsetParent: the button lives in the file's diff body, which GitHub
+    // keeps render-skipped (content-visibility) while the file is off-screen — so
+    // offsetParent is null right after we scroll to it, even though the button is live and
+    // .click() still fires its handler. Gating on it skipped the load until a second press
+    // brought the file on screen. Once clicked GitHub swaps the button out, so requiring it
+    // to be present (and not disabled) is enough to avoid a double-fire.
+    if (!btn || btn.disabled) return false;
     btn.click();
     toast("Loading diff…");
     return true;
@@ -476,6 +480,12 @@
     }
     if (markFileViewed(files[i])) recordMarks(files[i].id ? [files[i].id] : []);
     flash(files[i]);
+    // The just-marked file collapses and the next unviewed file slides up into view —
+    // pre-load its diff now (if deferred) so it's ready by the time you reach it. The
+    // reveal branch above only fires for an off-screen next file; this covers the common
+    // case where the next file is already on screen below the collapsed one.
+    const next = files.find((f, k) => k > i && !isFileViewed(f));
+    if (next) loadDeferredDiff(next);
     // Keep the just-marked (now collapsed) file at the top of the view so it's clear
     // which one was marked. Let the collapse settle before scrolling.
     requestAnimationFrame(() => requestAnimationFrame(() => goToFile(i)));
