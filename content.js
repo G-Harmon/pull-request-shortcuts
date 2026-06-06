@@ -343,37 +343,36 @@
     return true;
   }
 
+  // Nothing unviewed is reachable in the current view and loading has finished: tell the
+  // user whether a filter is hiding unviewed files (so they know to clear it) or everything
+  // really is viewed.
+  function toastNoUnviewedLeft() {
+    const hiddenUnviewed = getFiles().filter(
+      (f) => f.hasAttribute("hidden") && !isFileViewed(f)
+    ).length;
+    toast(
+      hiddenUnviewed > 0
+        ? `${hiddenUnviewed} unviewed file${hiddenUnviewed === 1 ? "" : "s"} hidden by the filter`
+        : "All files viewed"
+    );
+  }
+
   function firstUnviewedFile() {
     if (jumpToFirstUnviewed()) {
       cancelUnviewedWatch();
       return;
     }
-    // Nothing unviewed in the current view. Two reasons that isn't simply "all viewed":
-    cancelUnviewedWatch();
-    const files = getFiles();
-    const filterActive = files.some((f) => f.hasAttribute("hidden"));
-    // 1) A file filter is hiding unviewed files. We can't scroll to a hidden file (it has
-    //    no layout), so report them rather than pretend everything's viewed. Also, under a
-    //    filter the loaded/total counter is unreliable (GitHub never loads filtered-out
-    //    files), so we must not fall through to the "still loading" path below.
-    const hiddenUnviewed = files.filter(
-      (f) => f.hasAttribute("hidden") && !isFileViewed(f)
-    ).length;
-    if (hiddenUnviewed > 0) {
-      toast(
-        `${hiddenUnviewed} unviewed file${hiddenUnviewed === 1 ? "" : "s"} hidden by the filter`
-      );
-      return;
-    }
-    // 2) On a large PR the diff streams in top-to-bottom, so the first unviewed file may
-    //    not be in the DOM yet — watch and jump once it arrives. Skipped when a filter is
-    //    active (the counter can't be trusted, and nothing unviewed is shown).
-    if (!filterActive && diffStillLoading()) {
+    // Nothing unviewed in the current view yet. If files are still streaming in — true even
+    // under a filter (GitHub loads every file and just hides filtered-out ones, so the
+    // loaded/total counter stays valid) — watch and jump once the first unviewed arrives.
+    if (diffStillLoading()) {
       toast(loadingMsg(), 0); // sticky: stays until the jump fires or loading ends
       armUnviewedWatch();
-    } else {
-      toast("All files viewed");
+      return;
     }
+    // Fully loaded: either a filter is hiding the unviewed files, or all really are viewed.
+    cancelUnviewedWatch();
+    toastNoUnviewedLeft();
   }
 
   // Sticky progress message shown while we wait for more files to stream in, with a
@@ -443,7 +442,7 @@
           cancelUnviewedWatch();
         } else if (!diffStillLoading()) {
           cancelUnviewedWatch();
-          toast("All files viewed");
+          toastNoUnviewedLeft();
         } else {
           toast(loadingMsg(), 0); // still loading: refresh the live count
         }
