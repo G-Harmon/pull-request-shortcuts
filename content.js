@@ -82,10 +82,18 @@
   // --- File discovery -----------------------------------------------------
   // Primary selector matches current GitHub; fallbacks cover Enterprise drift.
   const FILE_SELECTORS = [".file", "[data-tagsearch-path]", ".js-file"];
+  // ".file" also matches code-suggestion blobs embedded in review comments (e.g.
+  // "blob-wrapper data file" inside .comment-body). Those aren't changed files: they have
+  // no reviewed-checkbox (so they'd look "unviewed") and no layout while their comment is
+  // collapsed (so we can't scroll to them), which derails index-based navigation. Exclude
+  // anything living inside comment markup.
+  const COMMENT_BLOB_SCOPE = ".comment-body, .js-comments-holder, .review-comment";
 
   function getFiles() {
     for (const sel of FILE_SELECTORS) {
-      const els = Array.from(document.querySelectorAll(sel));
+      const els = Array.from(document.querySelectorAll(sel)).filter(
+        (f) => !f.closest(COMMENT_BLOB_SCOPE)
+      );
       if (els.length) return els;
     }
     // Only a real failure when we're on a files page; silent elsewhere.
@@ -319,11 +327,27 @@
       cancelUnviewedWatch();
       return;
     }
-    // Nothing unviewed among the files loaded so far. On a large PR the diff
-    // streams in top-to-bottom, so the first unviewed file may simply not be
-    // rendered yet — arm a watcher to jump once it arrives. Only when the diff
-    // is fully loaded is "All files viewed" actually true.
-    if (diffStillLoading()) {
+    // Nothing unviewed in the current view. Two reasons that isn't simply "all viewed":
+    cancelUnviewedWatch();
+    const files = getFiles();
+    const filterActive = files.some((f) => f.hasAttribute("hidden"));
+    // 1) A file filter is hiding unviewed files. We can't scroll to a hidden file (it has
+    //    no layout), so report them rather than pretend everything's viewed. Also, under a
+    //    filter the loaded/total counter is unreliable (GitHub never loads filtered-out
+    //    files), so we must not fall through to the "still loading" path below.
+    const hiddenUnviewed = files.filter(
+      (f) => f.hasAttribute("hidden") && !isFileViewed(f)
+    ).length;
+    if (hiddenUnviewed > 0) {
+      toast(
+        `${hiddenUnviewed} unviewed file${hiddenUnviewed === 1 ? "" : "s"} hidden by the filter`
+      );
+      return;
+    }
+    // 2) On a large PR the diff streams in top-to-bottom, so the first unviewed file may
+    //    not be in the DOM yet — watch and jump once it arrives. Skipped when a filter is
+    //    active (the counter can't be trusted, and nothing unviewed is shown).
+    if (!filterActive && diffStillLoading()) {
       toast(loadingMsg(), 0); // sticky: stays until the jump fires or loading ends
       armUnviewedWatch();
     } else {
