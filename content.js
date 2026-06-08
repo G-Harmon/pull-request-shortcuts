@@ -36,6 +36,7 @@
   const STICKY_OFFSET = 60; // px reserved for GitHub's sticky page header
   const CHORD_TIMEOUT_MS = 500;
   const TOAST_MS = 1200;
+  const CHANGE_CONTEXT_LINES = 3; // context lines shown above a change jumped to with j/k
 
   // Are we currently on a PR "Files changed" page? Checked live (not cached) so
   // it tracks Turbo soft navigation between PR tabs.
@@ -256,9 +257,9 @@
     return STICKY_OFFSET + (h ? h.getBoundingClientRect().height : 0);
   }
 
-  function scrollRowToLine(tr) {
+  function scrollRowToLine(tr, line) {
     window.scrollTo({
-      top: tr.getBoundingClientRect().top + window.scrollY - changeTopOffset(),
+      top: tr.getBoundingClientRect().top + window.scrollY - line,
       behavior: "smooth",
     });
   }
@@ -271,7 +272,11 @@
       toast("No changes in view");
       return;
     }
-    const line = changeTopOffset();
+    // Land the change a few lines below the sticky header so the context above it is
+    // visible. The same line decides which change is "next", so repeated j/k still advance;
+    // it clamps naturally near the top of a file/hunk (nothing to scroll up to).
+    const rowH = starts[0].getBoundingClientRect().height || 20;
+    const line = changeTopOffset() + CHANGE_CONTEXT_LINES * rowH;
     let target = null;
     if (forward) {
       target = starts.find((tr) => tr.getBoundingClientRect().top - line > 1);
@@ -289,7 +294,7 @@
         return;
       }
     }
-    scrollRowToLine(target);
+    scrollRowToLine(target, line);
     highlightChange(target);
   }
 
