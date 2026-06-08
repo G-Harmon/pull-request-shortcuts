@@ -189,10 +189,24 @@
   }
 
   // --- Navigation ---------------------------------------------------------
-  function goToFile(index, message) {
+  function goToFile(index, message, highlight = true) {
     const files = getViewFiles();
     if (!files.length) return;
     const i = Math.max(0, Math.min(index, files.length - 1));
+    // Give the file GitHub's native highlight by making it the URL :target — the same thing
+    // clicking it in the file tree does (the .file container is #diff-<sha> / a
+    // js-targetable-element). Fragment navigation jumps the anchor to the top, so snapshot &
+    // restore scroll and let our own scroll below position it. location.replace (not
+    // assigning location.hash) avoids pushing a history entry on every jump.
+    // Skipped (highlight=false) when we're only re-positioning a just-marked file: making a
+    // collapsed (viewed) file the :target makes GitHub re-expand it.
+    const idEl = files[i].id ? files[i] : files[i].querySelector("[id^='diff-']");
+    const id = idEl && idEl.id;
+    if (highlight && id && "#" + id !== location.hash) {
+      const x = window.scrollX, y = window.scrollY;
+      location.replace("#" + id);
+      window.scrollTo(x, y); // undo the anchor jump before paint
+    }
     const header = fileHeader(files[i]);
     const box = header.getBoundingClientRect();
     if (box.height || box.width) {
@@ -486,8 +500,9 @@
     const next = files.find((f, k) => k > i && !isFileViewed(f));
     if (next) loadDeferredDiff(next);
     // Keep the just-marked (now collapsed) file at the top of the view so it's clear
-    // which one was marked. Let the collapse settle before scrolling.
-    requestAnimationFrame(() => requestAnimationFrame(() => goToFile(i)));
+    // which one was marked. Let the collapse settle before scrolling. Don't highlight it:
+    // making the collapsed file the :target would make GitHub re-expand it.
+    requestAnimationFrame(() => requestAnimationFrame(() => goToFile(i, undefined, false)));
   }
 
   function markAllVisibleViewed() {
