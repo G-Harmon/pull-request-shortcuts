@@ -12,6 +12,12 @@
 (function () {
   "use strict";
 
+  // Guard against double-injection: an added host can be injected both by the dynamically
+  // registered content script and by a one-off executeScript (active/open tabs). Running
+  // setup twice would stack duplicate document keydown listeners.
+  if (window.__prksLoaded) return;
+  window.__prksLoaded = true;
+
   // --- Keybindings (edit here to retune) ---------------------------------
   const KEYS = {
     nextFile: "]",

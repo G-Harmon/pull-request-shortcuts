@@ -2,15 +2,24 @@
   "manifest_version": 3,
   "name": "GitHub PR Review Shortcuts",
   "version": "1.0.0",
-  "description": "Extra keyboard shortcuts for the GitHub PR 'Files changed' review page (Joby GitHub Enterprise).",
+  "description": "Extra keyboard shortcuts for the GitHub PR 'Files changed' review page (github.com and self-hosted GitHub Enterprise).",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
+  "permissions": ["storage", "scripting"],
+  "optional_host_permissions": ["https://*/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "PR Review Shortcuts — configure hosts"
+  },
   "content_scripts": [
     {
-      "matches": ["https://github.example.com/*"],
+      "matches": ["https://github.com/*"],
       "js": ["content.js"],
       "css": ["overlay.css"],
       "run_at": "document_idle"
