@@ -101,3 +101,13 @@
 .prks-flash {
   animation: prks-flash-kf 1s ease-out;
 }
+
+/* Left + right bars marking the change block jumped to with j/k. Inset box-shadows on each
+   row's leftmost and rightmost cells stack into continuous bars at the diff's edges without
+   shifting layout. Uses GitHub's accent color so it reads in both light and dark themes. */
+tr.prks-change td:first-child {
+  box-shadow: inset 3px 0 0 0 var(--fgColor-accent, var(--color-accent-fg, #0969da));
+}
+tr.prks-change td:last-child {
+  box-shadow: inset -3px 0 0 0 var(--fgColor-accent, var(--color-accent-fg, #0969da));
+}

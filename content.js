@@ -140,6 +140,33 @@
     return starts;
   }
 
+  // --- Current-change highlight (j/k only) -------------------------------
+  // Jumping between changes with j/k marks the change block you land on with a left bar —
+  // the same contiguous run of added/deleted lines that j/k step through (getChangeStarts).
+  // It persists until you scroll or press any other shortcut, and never appears from plain
+  // scrolling or u/v.
+  let changeHighlighted = false;
+
+  // The contiguous run of changed rows starting at `tr` (a change-block start from
+  // getChangeStarts): tr plus the following rows until the next context/unchanged row.
+  function changeBlockRows(tr) {
+    const rows = [];
+    for (let r = tr; r && isChangedRow(r); r = r.nextElementSibling) rows.push(r);
+    return rows;
+  }
+
+  function clearChangeHighlight() {
+    if (!changeHighlighted) return; // cheap no-op for the wheel listener's common case
+    document.querySelectorAll("tr.prks-change").forEach((r) => r.classList.remove("prks-change"));
+    changeHighlighted = false;
+  }
+
+  function highlightChange(tr) {
+    clearChangeHighlight();
+    changeBlockRows(tr).forEach((r) => r.classList.add("prks-change"));
+    changeHighlighted = true;
+  }
+
   // Index (within the in-view list) of the file currently being read: the first
   // file not yet fully scrolled past the sticky line. Robust to short collapsed
   // (viewed) headers, unlike picking "the last header above the line".
@@ -263,6 +290,7 @@
       }
     }
     scrollRowToLine(target);
+    highlightChange(target);
   }
 
   function prevFile() {
@@ -672,6 +700,8 @@
     // Any key other than `u` means the user moved on; drop a pending deferred jump
     // so it can't yank the viewport away once more files finish loading.
     if (k !== KEYS.firstUnviewed) cancelUnviewedWatch();
+    // The change highlight is a j/k-only affordance; any other shortcut drops it.
+    if (k !== KEYS.nextChange && k !== KEYS.prevChange) clearChangeHighlight();
     switch (k) {
       case KEYS.nextFile:
         nextFile();
@@ -729,6 +759,11 @@
     if (isTyping()) detachKeys();
     else attachKeys();
   }
+
+  // Manual scrolling (mouse wheel / trackpad) drops the j/k change highlight, so it only
+  // ever marks a change you navigated to with j/k — not one you scrolled past. Programmatic
+  // smooth scrolling (our own j/k jump) doesn't fire wheel events, so it won't self-clear.
+  document.addEventListener("wheel", clearChangeHighlight, { passive: true });
 
   // focusin's activeElement is already the new element; after focusout it settles next frame.
   document.addEventListener("focusin", syncKeyListener, true);
