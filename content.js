@@ -56,6 +56,13 @@
     return /\/pull\/\d+/.test(location.pathname);
   }
 
+  // The PR "Conversation" tab: the bare PR URL with no sub-tab suffix (excludes
+  // /files, /commits, /checks, and /commits/<sha>). Checked live like the others so it
+  // tracks Turbo soft navigation. The unresolved-comment shortcuts are gated to this.
+  function isPrConversationPage() {
+    return /\/pull\/\d+\/?$/.test(location.pathname);
+  }
+
   // --- PR tab navigation --------------------------------------------------
   const TAB_LABELS = {
     "": "Conversation",
@@ -145,6 +152,56 @@
       if (!isChangedRow(tr.previousElementSibling)) starts.push(tr);
     });
     return starts;
+  }
+
+  // --- Unresolved-comment discovery (Conversation tab) -------------------
+  // Resolvable review-comment threads. Primary selector matches current GitHub;
+  // fallbacks cover Enterprise drift (mirrors FILE_SELECTORS).
+  const THREAD_SELECTORS = [
+    ".js-resolvable-timeline-thread-container",
+    ".review-thread-component",
+  ];
+
+  // A resolved thread is collapsed and carries data-resolved="true". Anything without
+  // that marker is still unresolved.
+  function isThreadResolved(el) {
+    return el.getAttribute("data-resolved") === "true";
+  }
+
+  // Rendered unresolved review threads in document order. Like getChangeStarts, threads
+  // that aren't laid out (not yet rendered / hidden behind a "show resolved" control) are
+  // skipped. Uses the first selector that matches anything on the page, so a fallback only
+  // kicks in when the primary genuinely isn't present.
+  function getUnresolvedThreads() {
+    for (const sel of THREAD_SELECTORS) {
+      if (!document.querySelector(sel)) continue;
+      return Array.from(document.querySelectorAll(sel)).filter(
+        (t) => !isThreadResolved(t) && t.getClientRects().length
+      );
+    }
+    if (isPrConversationPage()) {
+      console.warn(
+        "[PR Shortcuts] No review threads found. THREAD_SELECTORS may need updating for this GitHub version."
+      );
+    }
+    return [];
+  }
+
+  // --- Current-comment highlight (j/k on Conversation, only) -------------
+  // Jumping between unresolved comments rings the thread you land on; cleared on manual
+  // scroll or any other shortcut, exactly like the change highlight below.
+  let commentHighlighted = false;
+
+  function clearCommentHighlight() {
+    if (!commentHighlighted) return;
+    document.querySelectorAll(".prks-comment").forEach((t) => t.classList.remove("prks-comment"));
+    commentHighlighted = false;
+  }
+
+  function highlightComment(el) {
+    clearCommentHighlight();
+    el.classList.add("prks-comment");
+    commentHighlighted = true;
   }
 
   // --- Current-change highlight (j/k only) -------------------------------
@@ -302,6 +359,24 @@
     }
     scrollRowToLine(target, line);
     highlightChange(target);
+  }
+
+  // Jump to the first (topmost) unresolved review thread, ring-highlighting it. Mirrors
+  // `u` on the Files tab (first not-viewed file): repeated presses stay on the topmost
+  // unresolved thread until you resolve it, then naturally advance to the next one. No
+  // per-file sticky header on the Conversation tab, so the landing line is just below the
+  // page header plus a little context.
+  function jumpToFirstUnresolved() {
+    const threads = getUnresolvedThreads();
+    if (!threads.length) {
+      toast("No unresolved comments");
+      return;
+    }
+    const target = threads[0];
+    const line = STICKY_OFFSET + CHANGE_CONTEXT_LINES * 20;
+    scrollRowToLine(target, line);
+    highlightComment(target);
+    toast(`Unresolved 1 / ${threads.length}`);
   }
 
   function prevFile() {
@@ -618,7 +693,7 @@
           <tr><td><kbd>v</kbd></td><td>Mark file viewed &amp; advance</td></tr>
           <tr><td><kbd>V</kbd></td><td>Mark all files in view viewed</td></tr>
           <tr><td><kbd>b</kbd></td><td>Undo last mark (re-expand)</td></tr>
-          <tr><td><kbd>u</kbd></td><td>First not-viewed file</td></tr>
+          <tr><td><kbd>u</kbd></td><td>First not-viewed file (Files) / first unresolved comment (Conversation)</td></tr>
           <tr><td><kbd>g</kbd> <kbd>g</kbd></td><td>Jump to first file</td></tr>
           <tr><td><kbd>G</kbd></td><td>Jump to last file</td></tr>
           <tr><td><kbd>g</kbd> <kbd>c</kbd></td><td>Go to Conversation tab</td></tr>
@@ -706,6 +781,17 @@
     }
     lastG = 0;
 
+    // --- Conversation tab: jump to first unresolved comment (reuses 'u') ---
+    if (isPrConversationPage()) {
+      // The comment highlight is a 'u'-only affordance; any other shortcut drops it.
+      if (k !== KEYS.firstUnviewed) clearCommentHighlight();
+      if (k === KEYS.firstUnviewed) {
+        jumpToFirstUnresolved();
+        e.preventDefault();
+      }
+      return; // nothing else is ours on the Conversation tab
+    }
+
     // --- single-key file-navigation (Files page only) ---
     if (!isPrFilesPage()) return;
     // Any key other than `u` means the user moved on; drop a pending deferred jump
@@ -771,10 +857,17 @@
     else attachKeys();
   }
 
-  // Manual scrolling (mouse wheel / trackpad) drops the j/k change highlight, so it only
-  // ever marks a change you navigated to with j/k — not one you scrolled past. Programmatic
+  // Manual scrolling (mouse wheel / trackpad) drops the j/k highlights, so they only ever
+  // mark a change/comment you navigated to with j/k — not one you scrolled past. Programmatic
   // smooth scrolling (our own j/k jump) doesn't fire wheel events, so it won't self-clear.
-  document.addEventListener("wheel", clearChangeHighlight, { passive: true });
+  document.addEventListener(
+    "wheel",
+    () => {
+      clearChangeHighlight();
+      clearCommentHighlight();
+    },
+    { passive: true }
+  );
 
   // focusin's activeElement is already the new element; after focusout it settles next frame.
   document.addEventListener("focusin", syncKeyListener, true);

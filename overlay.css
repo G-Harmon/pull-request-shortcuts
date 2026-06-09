@@ -111,3 +111,11 @@ tr.prks-change td:first-child {
 tr.prks-change td:last-child {
   box-shadow: inset -3px 0 0 0 var(--fgColor-accent, var(--color-accent-fg, #0969da));
 }
+
+/* Ring on the unresolved review thread jumped to with j/k on the Conversation tab. A
+   box-shadow ring (not a border) so it doesn't shift layout. Same accent token as
+   prks-change so it reads in both light and dark themes. */
+.prks-comment {
+  box-shadow: 0 0 0 2px var(--fgColor-accent, var(--color-accent-fg, #0969da));
+  border-radius: 6px;
+}
