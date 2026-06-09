@@ -14,7 +14,7 @@ the box, and on self-hosted **GitHub Enterprise** hosts you add yourself.
 | `v` | Mark the current file **Viewed**; keeps it in view at the top and briefly flashes it (the next file follows below) |
 | `V` | Mark all files in the current (filtered) view as **Viewed** |
 | `b` | Undo the last viewed-mark (re-expands the file); one press undoes a whole `V` batch |
-| `u` | Jump to first not-viewed file |
+| `u` | **Files changed:** jump to first not-viewed file. **Conversation:** jump to the first **unresolved** review thread (ring-highlighted); like not-viewed, pressing `u` again after you resolve it advances to the next unresolved thread |
 | `g` `g` | Jump to first file |
 | `G` | Jump to last file |
 | `g` `c` | Go to the **Conversation** tab |
@@ -67,6 +67,13 @@ constant (plus `STICKY_OFFSET`, `CHORD_TIMEOUT_MS`, `TOAST_MS`, `CHANGE_CONTEXT_
   `input.js-reviewed-checkbox`. If a future GitHub upgrade changes the DOM, update
   `FILE_SELECTORS` in `content.js`. A warning is logged to the console (only on a
   files page) when no files are found.
+- **Unresolved-comment navigation** (`u` on the Conversation tab) finds review
+  threads via `.js-resolvable-timeline-thread-container` (fallback
+  `.review-thread-component`) and treats a thread as resolved when it carries
+  `data-resolved="true"`. Resolved (collapsed) threads and plain discussion comments are
+  skipped, as are threads not yet rendered (e.g. hidden behind a "show resolved" control).
+  If a future GitHub upgrade changes the DOM, update `THREAD_SELECTORS` / `isThreadResolved`
+  in `content.js`; a warning is logged (only on a Conversation page) when nothing matches.
 - **`u` on a large, still-loading PR:** GitHub streams a big diff in batches, so the
   file holding the first unviewed change may not be in the DOM yet when you press `u`.
   Rather than wrongly report "All files viewed", the extension reads the total file
@@ -78,5 +85,6 @@ constant (plus `STICKY_OFFSET`, `CHORD_TIMEOUT_MS`, `TOAST_MS`, `CHANGE_CONTEXT_
 
 ## Scope
 
-Intentionally minimal: file navigation, mark-viewed, and change highlighting. Not
-included: configurable keybindings UI, or Approve/Request-changes submission shortcuts.
+Intentionally minimal: file navigation, mark-viewed, change highlighting, and
+unresolved-comment navigation on the Conversation tab. Not included: configurable
+keybindings UI, or Approve/Request-changes submission shortcuts.
