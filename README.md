@@ -14,7 +14,7 @@ the box, and on self-hosted **GitHub Enterprise** hosts you add yourself.
 | `v` | Mark the current file **Viewed**; keeps it in view at the top and briefly flashes it (the next file follows below) |
 | `V` | Mark all files in the current (filtered) view as **Viewed** |
 | `b` | Undo the last viewed-mark (re-expands the file); one press undoes a whole `V` batch |
-| `u` | **Files changed:** jump to first not-viewed file. **Conversation:** jump to the first **unresolved** review thread (ring-highlighted); like not-viewed, pressing `u` again after you resolve it advances to the next unresolved thread |
+| `u` | Jump to the **next** not-viewed file (**Files changed**) / **next unresolved** review thread, ring-highlighted (**Conversation**), below the current position. When none remain below, wraps to the first one — so repeated `u` walks through everything still needing attention |
 | `g` `g` | Jump to first file |
 | `G` | Jump to last file |
 | `g` `c` | Go to the **Conversation** tab |
