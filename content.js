@@ -361,22 +361,30 @@
     highlightChange(target);
   }
 
-  // Jump to the first (topmost) unresolved review thread, ring-highlighting it. Mirrors
-  // `u` on the Files tab (first not-viewed file): repeated presses stay on the topmost
-  // unresolved thread until you resolve it, then naturally advance to the next one. No
+  // Jump to the next unresolved review thread below the current position, ring-highlighting
+  // it. Mirrors `u` on the Files tab (next not-viewed file): when none remain below, wrap to
+  // the topmost unresolved thread so repeated `u` round-robins through all of them. No
   // per-file sticky header on the Conversation tab, so the landing line is just below the
-  // page header plus a little context.
-  function jumpToFirstUnresolved() {
+  // page header plus a little context (same forward scan as jumpToChange).
+  function jumpToNextUnresolved() {
     const threads = getUnresolvedThreads();
     if (!threads.length) {
       toast("No unresolved comments");
       return;
     }
-    const target = threads[0];
     const line = STICKY_OFFSET + CHANGE_CONTEXT_LINES * 20;
+    let target = threads.find((t) => t.getBoundingClientRect().top - line > 1); // next below
+    let wrapped = false;
+    if (!target) {
+      target = threads[0]; // none below: wrap to first
+      wrapped = true;
+    }
     scrollRowToLine(target, line);
     highlightComment(target);
-    toast(`Unresolved 1 / ${threads.length}`);
+    toast(
+      (wrapped ? "Wrapped — " : "") +
+        `unresolved ${threads.indexOf(target) + 1} / ${threads.length}`
+    );
   }
 
   function prevFile() {
@@ -460,13 +468,22 @@
     }
   }
 
-  // Jump to the first not-yet-viewed file in the current view. Returns false if
-  // none is present, so the caller can decide whether to wait for more to load.
-  function jumpToFirstUnviewed() {
+  // Jump to the next not-yet-viewed file below the current one (like `]`, but skipping
+  // viewed files). When none remain below, wrap to the topmost still-unviewed file so
+  // repeated `u` round-robins through all remaining work. Returns false only when no
+  // unviewed file is loaded at all, so the caller can decide whether to wait for more.
+  function jumpToNextUnviewed() {
     const files = getViewFiles();
-    const i = files.findIndex((f) => !isFileViewed(f));
-    if (i === -1) return false;
-    goToFile(i);
+    if (!files.length) return false;
+    const cur = getCurrentIndex(files);
+    let i = files.findIndex((f, k) => k > cur && !isFileViewed(f)); // next below current
+    let wrapped = false;
+    if (i === -1) {
+      i = files.findIndex((f) => !isFileViewed(f)); // none below: wrap to topmost remaining
+      wrapped = i !== -1;
+    }
+    if (i === -1) return false; // none anywhere
+    goToFile(i, wrapped ? "Wrapped to first unviewed" : undefined);
     loadDeferredDiff(files[i]); // if the target's diff is deferred behind "Load diff", load it
     return true;
   }
@@ -485,8 +502,8 @@
     );
   }
 
-  function firstUnviewedFile() {
-    if (jumpToFirstUnviewed()) {
+  function nextUnviewedFile() {
+    if (jumpToNextUnviewed()) {
       cancelUnviewedWatch();
       return;
     }
@@ -566,7 +583,7 @@
         scheduled = false;
         if (!isPrFilesPage()) {
           cancelUnviewedWatch();
-        } else if (jumpToFirstUnviewed()) {
+        } else if (jumpToNextUnviewed()) {
           cancelUnviewedWatch();
         } else if (!diffStillLoading()) {
           cancelUnviewedWatch();
@@ -693,7 +710,7 @@
           <tr><td><kbd>v</kbd></td><td>Mark file viewed &amp; advance</td></tr>
           <tr><td><kbd>V</kbd></td><td>Mark all files in view viewed</td></tr>
           <tr><td><kbd>b</kbd></td><td>Undo last mark (re-expand)</td></tr>
-          <tr><td><kbd>u</kbd></td><td>First not-viewed file (Files) / first unresolved comment (Conversation)</td></tr>
+          <tr><td><kbd>u</kbd></td><td>Next not-viewed file (Files) / next unresolved comment (Conversation)</td></tr>
           <tr><td><kbd>g</kbd> <kbd>g</kbd></td><td>Jump to first file</td></tr>
           <tr><td><kbd>G</kbd></td><td>Jump to last file</td></tr>
           <tr><td><kbd>g</kbd> <kbd>c</kbd></td><td>Go to Conversation tab</td></tr>
@@ -786,7 +803,7 @@
       // The comment highlight is a 'u'-only affordance; any other shortcut drops it.
       if (k !== KEYS.firstUnviewed) clearCommentHighlight();
       if (k === KEYS.firstUnviewed) {
-        jumpToFirstUnresolved();
+        jumpToNextUnresolved();
         e.preventDefault();
       }
       return; // nothing else is ours on the Conversation tab
@@ -822,7 +839,7 @@
         undoLastMark();
         break;
       case KEYS.firstUnviewed:
-        firstUnviewedFile();
+        nextUnviewedFile();
         break;
       case KEYS.lastFile:
         goToFile(getViewFiles().length - 1);
