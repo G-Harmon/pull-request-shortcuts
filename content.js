@@ -373,11 +373,24 @@
       return;
     }
     const line = STICKY_OFFSET + CHANGE_CONTEXT_LINES * 20;
-    let target = threads.find((t) => t.getBoundingClientRect().top - line > 1); // next below
-    let wrapped = false;
-    if (!target) {
-      target = threads[0]; // none below: wrap to first
-      wrapped = true;
+    let target, wrapped = false;
+    // If we're parked on the thread a previous `u` highlighted (and a manual scroll hasn't
+    // cleared that highlight), step to the next one by index rather than by live geometry.
+    // scrollRowToLine can't always land the thread's top exactly on the line: content
+    // rendering/expanding as it scrolls into view (plus sub-pixel rounding) often leaves it a
+    // few px below, so a geometry scan would re-select the same thread and just nudge it —
+    // stalling `u` on the current thread until an extra press settled it.
+    const current = threads.find((t) => t.classList.contains("prks-comment"));
+    if (current) {
+      const next = threads.indexOf(current) + 1;
+      wrapped = next >= threads.length;
+      target = wrapped ? threads[0] : threads[next];
+    } else {
+      target = threads.find((t) => t.getBoundingClientRect().top - line > 1); // next below
+      if (!target) {
+        target = threads[0]; // none below: wrap to first
+        wrapped = true;
+      }
     }
     scrollRowToLine(target, line);
     highlightComment(target);
