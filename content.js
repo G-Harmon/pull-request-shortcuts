@@ -286,17 +286,21 @@
     const i = Math.max(0, Math.min(index, files.length - 1));
     // Give the file GitHub's native highlight by making it the URL :target — the same thing
     // clicking it in the file tree does (the .file container is #diff-<sha> / a
-    // js-targetable-element). Fragment navigation jumps the anchor to the top, so snapshot &
-    // restore scroll and let our own scroll below position it. location.replace (not
-    // assigning location.hash) avoids pushing a history entry on every jump.
+    // js-targetable-element). location.replace (not assigning location.hash) avoids pushing a
+    // history entry on every jump.
     // Skipped (highlight=false) when we're only re-positioning a just-marked file: making a
     // collapsed (viewed) file the :target makes GitHub re-expand it.
     const idEl = files[i].id ? files[i] : files[i].querySelector("[id^='diff-']");
     const id = idEl && idEl.id;
     if (highlight && id && "#" + id !== location.hash) {
-      const x = window.scrollX, y = window.scrollY;
+      // Set the fragment WITHOUT the browser scrolling the anchor to the top of the
+      // viewport — that instant jump fights the smooth scroll below and is the visible
+      // "snap to top, then glide down". With the id momentarily cleared, fragment navigation
+      // finds no anchor to scroll to; restoring it makes :target match as a style-only change
+      // (no scroll), leaving our smooth scroll as the sole motion to the final position.
+      idEl.id = "";
       location.replace("#" + id);
-      window.scrollTo(x, y); // undo the anchor jump before paint
+      idEl.id = id;
     }
     const header = fileHeader(files[i]);
     const box = header.getBoundingClientRect();
