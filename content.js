@@ -187,6 +187,43 @@
     return [];
   }
 
+  // --- Timeline expansion (Conversation tab) -----------------------------
+  // The PR discussion timeline; the text fallback below is scoped to it so we never click
+  // unrelated "Show…" buttons (e.g. "Show file tree", "Hide whitespace").
+  const TIMELINE_SELECTORS = [".js-discussion", "#discussion_bucket", ".pull-discussion-timeline"];
+
+  function timelineContainer() {
+    for (const sel of TIMELINE_SELECTORS) {
+      const el = document.querySelector(sel);
+      if (el) return el;
+    }
+    return document.body;
+  }
+
+  // Controls that surface more timeline items than are currently rendered:
+  //   - "Load more…": ajax pagination for long timelines (fetches the next page of events).
+  //   - "Show N hidden items" / "Show outdated": collapsed low-signal items — where OUTDATED
+  //     review threads live, and an outdated thread can still be unresolved.
+  // Both must be expanded so `u` can reach every unresolved thread, outdated ones included.
+  const EXPAND_SELECTORS = [
+    "form.ajax-pagination-form button[type=submit]", // Load more (pagination)
+    "button.ajax-pagination-btn",
+    ".js-ajax-pagination button",
+    "button.js-timeline-marker", // "Show N hidden items" (selector subject to drift)
+  ];
+  const EXPAND_TEXT = /^(load more|show\s+\d+\s+hidden|show outdated)/i; // timeline-scoped fallback
+
+  // Visible, enabled expansion controls in the timeline, in document order.
+  function getExpandControls() {
+    const root = timelineContainer();
+    const seen = new Set();
+    for (const sel of EXPAND_SELECTORS) root.querySelectorAll(sel).forEach((b) => seen.add(b));
+    root.querySelectorAll("button, a").forEach((b) => {
+      if (EXPAND_TEXT.test((b.textContent || "").trim())) seen.add(b);
+    });
+    return [...seen].filter((b) => !b.disabled && b.getClientRects().length);
+  }
+
   // --- Current-comment highlight (j/k on Conversation, only) -------------
   // Jumping between unresolved comments rings the thread you land on; cleared on manual
   // scroll or any other shortcut, exactly like the change highlight below.
@@ -402,6 +439,84 @@
       (wrapped ? "Wrapped — " : "") +
         `unresolved ${threads.indexOf(target) + 1} / ${threads.length}`
     );
+  }
+
+  // --- `u` on the Conversation tab: in-order walk that reveals hidden threads ---
+  // A heavily-active PR hides timeline items behind "Load more" (pagination) and "Show N
+  // hidden items" / "Show outdated" (collapsed groups, where outdated-but-unresolved threads
+  // live). getUnresolvedThreads only sees laid-out threads, so those are invisible to a plain
+  // jump. To walk every unresolved thread in order without skipping hidden ones, each `u`
+  // takes one step: jump to the next unresolved thread unless an expansion control sits
+  // between us and it, in which case reveal that control and re-evaluate once it renders.
+  let unresolvedWatch = null; // { observer, timer } while revealing hidden timeline content
+
+  function cancelUnresolvedWatch() {
+    clearLoadingToast();
+    if (!unresolvedWatch) return;
+    unresolvedWatch.observer.disconnect();
+    clearTimeout(unresolvedWatch.timer);
+    unresolvedWatch = null;
+  }
+
+  // One in-order step. Returns true if it clicked a control to reveal more (the caller should
+  // then watch for the result); false if it performed the jump (next thread below, wrap, or
+  // the "No unresolved comments" toast — all handled by jumpToNextUnresolved).
+  function advanceUnresolved() {
+    const threads = getUnresolvedThreads();
+    const controls = getExpandControls();
+    // "Current position": the highlighted thread's top when we're parked on one (a manual
+    // scroll clears the highlight), else the landing line. Used only to order what's below;
+    // the jump target itself is chosen by jumpToNextUnresolved's robust anchor-index logic.
+    const line = STICKY_OFFSET + CHANGE_CONTEXT_LINES * 20;
+    const anchor = threads.find((t) => t.classList.contains("prks-comment"));
+    const topOf = (el) => el.getBoundingClientRect().top;
+    const fromY = anchor ? topOf(anchor) : line;
+    const nextThread = threads.find((t) => topOf(t) - fromY > 1); // first unresolved below
+    const nextControl = controls
+      .filter((c) => topOf(c) - fromY > 1)
+      .sort((a, b) => topOf(a) - topOf(b))[0]; // first expansion control below
+    // Reveal when a control sits between us and the next unresolved thread (or there is no
+    // unresolved thread below but a control is) — so we never skip a hidden, earlier thread.
+    if (nextControl && (!nextThread || topOf(nextControl) < topOf(nextThread))) {
+      nextControl.click();
+      return true;
+    }
+    jumpToNextUnresolved();
+    return false;
+  }
+
+  // After advanceUnresolved() reveals a control, watch for the streamed-in items and re-run
+  // the step: a newly-revealed thread that now precedes the next control makes it jump (and
+  // return false → stop); otherwise it clicks the next control and we keep watching. Stops on
+  // jump, on leaving the Conversation page, or after a safety timeout (then jump to whatever
+  // rendered so `u` still does something). Re-arming tears down any existing watch.
+  function armUnresolvedWatch() {
+    cancelUnresolvedWatch();
+    const container = timelineContainer();
+    let scheduled = false;
+    const observer = new MutationObserver(() => {
+      if (scheduled) return; // coalesce a burst of mutations into one check
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        if (!isPrConversationPage()) return cancelUnresolvedWatch();
+        if (advanceUnresolved()) toast("Loading hidden comments…", 0); // still revealing
+        else cancelUnresolvedWatch(); // it jumped — done
+      });
+    });
+    observer.observe(container, { childList: true, subtree: true });
+    const timer = setTimeout(() => {
+      cancelUnresolvedWatch();
+      if (isPrConversationPage()) jumpToNextUnresolved();
+    }, 30000);
+    unresolvedWatch = { observer, timer };
+  }
+
+  function nextUnresolvedComment() {
+    if (advanceUnresolved()) {
+      toast("Loading hidden comments…", 0); // sticky until the reveal renders
+      armUnresolvedWatch();
+    }
   }
 
   function prevFile() {
@@ -830,12 +945,16 @@
     }
     lastG = 0;
 
-    // --- Conversation tab: jump to first unresolved comment (reuses 'u') ---
+    // --- Conversation tab: walk unresolved comments in order (reuses 'u') ---
     if (isPrConversationPage()) {
-      // The comment highlight is a 'u'-only affordance; any other shortcut drops it.
-      if (k !== KEYS.firstUnviewed) clearCommentHighlight();
+      // The highlight and the in-progress reveal are 'u'-only affordances; any other
+      // shortcut means the user moved on, so drop them.
+      if (k !== KEYS.firstUnviewed) {
+        clearCommentHighlight();
+        cancelUnresolvedWatch();
+      }
       if (k === KEYS.firstUnviewed) {
-        jumpToNextUnresolved();
+        nextUnresolvedComment();
         e.preventDefault();
       }
       return; // nothing else is ours on the Conversation tab
