@@ -481,6 +481,11 @@
     }
   }
 
+  // The file the last `u` jumped to, used to anchor the next `u`. Cleared on a manual
+  // scroll or any other shortcut, so it only persists across a run of `u` presses — the
+  // file-side analogue of the .prks-comment anchor used for unresolved comments.
+  let lastUnviewedFile = null;
+
   // Jump to the next not-yet-viewed file below the current one (like `]`, but skipping
   // viewed files). When none remain below, wrap to the topmost still-unviewed file so
   // repeated `u` round-robins through all remaining work. Returns false only when no
@@ -488,14 +493,24 @@
   function jumpToNextUnviewed() {
     const files = getViewFiles();
     if (!files.length) return false;
-    const cur = getCurrentIndex(files);
+    // Anchor "current" on the file the previous `u` landed on rather than re-deriving it
+    // from geometry: goToFile can't always land the header exactly on the line (layout
+    // shifts as the diff renders mid-scroll), which nudges getCurrentIndex to the previous
+    // file and makes "next below" re-pick the file we're already on. Fall back to live
+    // geometry once the anchor is gone (first `u`, after a manual scroll, or any other key).
+    let cur = lastUnviewedFile ? files.indexOf(lastUnviewedFile) : -1;
+    if (cur === -1) cur = getCurrentIndex(files);
     let i = files.findIndex((f, k) => k > cur && !isFileViewed(f)); // next below current
     let wrapped = false;
     if (i === -1) {
       i = files.findIndex((f) => !isFileViewed(f)); // none below: wrap to topmost remaining
       wrapped = i !== -1;
     }
-    if (i === -1) return false; // none anywhere
+    if (i === -1) {
+      lastUnviewedFile = null;
+      return false; // none anywhere
+    }
+    lastUnviewedFile = files[i];
     goToFile(i, wrapped ? "Wrapped to first unviewed" : undefined);
     loadDeferredDiff(files[i]); // if the target's diff is deferred behind "Load diff", load it
     return true;
@@ -824,9 +839,13 @@
 
     // --- single-key file-navigation (Files page only) ---
     if (!isPrFilesPage()) return;
-    // Any key other than `u` means the user moved on; drop a pending deferred jump
-    // so it can't yank the viewport away once more files finish loading.
-    if (k !== KEYS.firstUnviewed) cancelUnviewedWatch();
+    // Any key other than `u` means the user moved on; drop a pending deferred jump so it
+    // can't yank the viewport away once more files finish loading, and release the `u`
+    // anchor so the next `u` re-derives "current" from where the user now is.
+    if (k !== KEYS.firstUnviewed) {
+      cancelUnviewedWatch();
+      lastUnviewedFile = null;
+    }
     // The change highlight is a j/k-only affordance; any other shortcut drops it.
     if (k !== KEYS.nextChange && k !== KEYS.prevChange) clearChangeHighlight();
     switch (k) {
@@ -895,6 +914,7 @@
     () => {
       clearChangeHighlight();
       clearCommentHighlight();
+      lastUnviewedFile = null; // re-derive `u`'s anchor from the new scroll position
     },
     { passive: true }
   );
