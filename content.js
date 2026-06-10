@@ -45,9 +45,11 @@
   const CHANGE_CONTEXT_LINES = 3; // context lines shown above a change jumped to with j/k
 
   // Are we currently on a PR "Files changed" page? Checked live (not cached) so
-  // it tracks Turbo soft navigation between PR tabs.
+  // it tracks Turbo soft navigation between PR tabs. github.com's new pull-request
+  // experience serves this tab at /pull/N/changes; classic GitHub (and Enterprise) use
+  // /pull/N/files — accept both.
   function isPrFilesPage() {
-    return /\/pull\/\d+\/files\b/.test(location.pathname);
+    return /\/pull\/\d+\/(files|changes)\b/.test(location.pathname);
   }
 
   // Any PR tab (Conversation / Commits / Checks / Files). The tab chords work here;
@@ -68,8 +70,30 @@
     "": "Conversation",
     "/commits": "Commits",
     "/checks": "Checks",
-    "/files": "Files changed",
+    "/files": "Files changed", // classic / Enterprise
+    "/changes": "Files changed", // new pull-request experience
   };
+
+  // The Files-changed tab suffix this site uses: /changes on github.com's new experience,
+  // /files on classic/Enterprise. Prefer the current path, else whichever tab link exists,
+  // else default to the new /changes.
+  function filesTabSuffix() {
+    if (/\/changes\b/.test(location.pathname)) return "/changes";
+    if (/\/files\b/.test(location.pathname)) return "/files";
+    const m = location.pathname.match(/^(.*\/pull\/\d+)/);
+    const prefix = m ? m[1] : "";
+    const hasLink = (suf) =>
+      Array.from(document.querySelectorAll("a[href]")).some((a) => {
+        try {
+          return new URL(a.href, location.origin).pathname === prefix + suf;
+        } catch (e) {
+          return false;
+        }
+      });
+    if (hasLink("/changes")) return "/changes";
+    if (hasLink("/files")) return "/files";
+    return "/changes";
+  }
 
   // Jump to a PR tab by suffix ("" | "/commits" | "/checks" | "/files"). Clicks the
   // existing tab link so GitHub does a Turbo soft-nav (no reload); falls back to a
@@ -94,8 +118,14 @@
   }
 
   // --- File discovery -----------------------------------------------------
-  // Primary selector matches current GitHub; fallbacks cover Enterprise drift.
-  const FILE_SELECTORS = [".file", "[data-tagsearch-path]", ".js-file"];
+  // First selector matches github.com's new pull-request experience (each file is a
+  // role="region" with an #diff-<sha> id); the rest cover classic GitHub / Enterprise drift.
+  const FILE_SELECTORS = [
+    '[role="region"][id^="diff-"]',
+    ".file",
+    "[data-tagsearch-path]",
+    ".js-file",
+  ];
   // ".file" also matches code-suggestion blobs embedded in review comments (e.g.
   // "blob-wrapper data file" inside .comment-body). Those aren't changed files: they have
   // no reviewed-checkbox (so they'd look "unviewed") and no layout while their comment is
@@ -120,7 +150,11 @@
   }
 
   function fileHeader(file) {
-    return file.querySelector(".file-header") || file;
+    return (
+      file.querySelector("[data-diff-header-wrapper]") || // new pull-request experience
+      file.querySelector(".file-header") || // classic / Enterprise
+      file
+    );
   }
 
   // Files in the current view. A file filter hides non-matching files with the
@@ -131,26 +165,50 @@
   }
 
   // --- Change-block discovery --------------------------------------------
-  // Added/deleted diff lines. Long-standing GitHub classes; update if GHE drifts.
-  const CHANGED_LINE_SELECTOR = "td.blob-code-addition, td.blob-code-deletion";
+  // Classic GitHub / Enterprise: added/deleted lines are cells with these classes.
+  const CHANGED_CELL_SELECTOR = "td.blob-code-addition, td.blob-code-deletion";
 
+  // True for an added/deleted diff-line row in either UI:
+  //   - classic: the row contains a blob-code addition/deletion cell.
+  //   - new pull-request experience: a `tr.diff-line-row` whose line-number cell is NOT the
+  //     neutral (context) variant — context rows carry `diff-line-number-neutral`, changed
+  //     rows don't. Hunk-header rows (`diff-hunk-cell`) are excluded.
   function isChangedRow(tr) {
-    return !!(tr && tr.querySelector(CHANGED_LINE_SELECTOR));
+    if (!tr || !tr.querySelector) return false;
+    if (tr.querySelector(CHANGED_CELL_SELECTOR)) return true; // classic
+    if (tr.classList && tr.classList.contains("diff-line-row")) {
+      if (tr.querySelector(".diff-hunk-cell")) return false;
+      return !!tr.querySelector('[class*="diff-line-number"]:not(.diff-line-number-neutral)');
+    }
+    return false;
+  }
+
+  // Candidate changed rows in document order, for whichever UI is present.
+  function changedRows() {
+    const newRows = document.querySelectorAll("tr.diff-line-row");
+    if (newRows.length) return Array.from(newRows).filter(isChangedRow);
+    const rows = [];
+    let last = null;
+    document.querySelectorAll(CHANGED_CELL_SELECTOR).forEach((cell) => {
+      const tr = cell.closest("tr");
+      if (tr && tr !== last) {
+        rows.push(tr); // one entry per row (split diff has 2 cells)
+        last = tr;
+      }
+    });
+    return rows;
   }
 
   // Rendered change-block start rows in document order: the first changed row of each
-  // contiguous run of changes. Rows that aren't laid out (collapsed/filtered/deferred)
-  // are skipped, so jumping naturally crosses into the next rendered file's changes.
+  // contiguous run of changes. Rows that aren't laid out (collapsed/filtered/deferred, or
+  // render-skipped by the new UI's content-visibility) are skipped, so jumping naturally
+  // crosses into the next rendered file's changes.
   function getChangeStarts() {
     const starts = [];
-    let lastRow = null;
-    document.querySelectorAll(CHANGED_LINE_SELECTOR).forEach((cell) => {
-      const tr = cell.closest("tr");
-      if (!tr || tr === lastRow) return; // one entry per row (split diff has 2 cells)
-      lastRow = tr;
-      if (!tr.getClientRects().length) return; // not rendered
+    for (const tr of changedRows()) {
+      if (!tr.getClientRects().length) continue; // not rendered
       if (!isChangedRow(tr.previousElementSibling)) starts.push(tr);
-    });
+    }
     return starts;
   }
 
@@ -408,28 +466,38 @@
     goToFile(getCurrentIndex(getViewFiles()) - 1);
   }
 
-  function isFileViewed(file) {
-    const cb = file.querySelector("input.js-reviewed-checkbox");
-    return !!(cb && cb.checked); // no checkbox => treated as not viewed
-  }
-
+  // The "Viewed" control for a file. New pull-request experience: an aria-pressed toggle
+  // button labelled "Viewed"/"Not Viewed". Classic / Enterprise: a checkbox + its label.
+  // Returns a uniform { isViewed, click } handle, or null if the file has no control.
   function viewedToggle(file) {
+    const btn = file.querySelector('button[aria-pressed][aria-label*="iewed" i]');
+    if (btn) {
+      return {
+        isViewed: () => btn.getAttribute("aria-pressed") === "true",
+        click: () => btn.click(),
+      };
+    }
     const checkbox = file.querySelector("input.js-reviewed-checkbox");
     if (!checkbox) return null;
     const label =
       checkbox.closest("label") ||
       file.querySelector(".js-reviewed-toggle") ||
       checkbox;
-    return { checkbox, label };
+    return { isViewed: () => checkbox.checked, click: () => label.click() };
   }
 
-  // Toggle a single file's "Viewed" checkbox on (if not already). Returns true if it
-  // actually changed it. Clicks the label so GitHub's own handlers fire. Callers
-  // record what they marked on the undo stack (as a batch).
+  function isFileViewed(file) {
+    const t = viewedToggle(file);
+    return !!(t && t.isViewed()); // no control => treated as not viewed
+  }
+
+  // Mark a single file "Viewed" (if not already). Returns true if it actually changed it.
+  // Clicks the control so GitHub's own handlers fire. Callers record what they marked on
+  // the undo stack (as a batch).
   function markFileViewed(file) {
     const t = viewedToggle(file);
-    if (!t || t.checkbox.checked) return false;
-    t.label.click();
+    if (!t || t.isViewed()) return false;
+    t.click();
     return true;
   }
 
@@ -438,12 +506,12 @@
     if (ids.length) markHistory.push(ids);
   }
 
-  // Un-mark a file's "Viewed" checkbox (if set). Returns true if it changed it.
-  // Unchecking makes GitHub re-expand the diff and mark the file unviewed.
+  // Un-mark a file's "Viewed" control (if set). Returns true if it changed it.
+  // Un-viewing makes GitHub re-expand the diff and mark the file unviewed.
   function unmarkFileViewed(file) {
     const t = viewedToggle(file);
-    if (!t || !t.checkbox.checked) return false;
-    t.label.click();
+    if (!t || !t.isViewed()) return false;
+    t.click();
     return true;
   }
 
@@ -803,7 +871,7 @@
         return;
       }
       if (k === KEYS.tabFiles) {
-        goToTab("/files");
+        goToTab(filesTabSuffix());
         e.preventDefault();
         return;
       }

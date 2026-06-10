@@ -62,11 +62,16 @@ constant (plus `STICKY_OFFSET`, `CHORD_TIMEOUT_MS`, `TOAST_MS`, `CHANGE_CONTEXT_
   `chrome.scripting.registerContentScripts` after you grant the per-site permission.
   Opening the popup reconciles the list (e.g. if you revoke a site permission from
   `chrome://extensions`, it's dropped).
-- The extension finds diff files via the `.file` selector (with
-  `[data-tagsearch-path]` / `.js-file` fallbacks) and the "Viewed" checkbox via
-  `input.js-reviewed-checkbox`. If a future GitHub upgrade changes the DOM, update
-  `FILE_SELECTORS` in `content.js`. A warning is logged to the console (only on a
-  files page) when no files are found.
+- **Two UIs supported.** github.com's new pull-request experience serves "Files changed"
+  at `/pull/N/changes` with a new DOM; classic GitHub / Enterprise use `/pull/N/files`.
+  The extension matches both. On the new UI a file is `[role="region"][id^="diff-"]`, its
+  header is `[data-diff-header-wrapper]`, "Viewed" is an `aria-pressed` button, and a
+  changed diff line is a `tr.diff-line-row` whose line-number cell lacks
+  `diff-line-number-neutral`; classic selectors (`.file`, `input.js-reviewed-checkbox`,
+  `td.blob-code-addition/deletion`) are kept as fallbacks. If a future GitHub upgrade
+  changes the DOM, update `FILE_SELECTORS` / `fileHeader` / `viewedToggle` /
+  `isChangedRow` in `content.js`. A warning is logged (only on a files page) when no
+  files are found.
 - **Unresolved-comment navigation** (`u` on the Conversation tab) finds review
   threads via `.js-resolvable-timeline-thread-container` (fallback
   `.review-thread-component`) and treats a thread as resolved when it carries
