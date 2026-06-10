@@ -75,10 +75,16 @@ constant (plus `STICKY_OFFSET`, `CHORD_TIMEOUT_MS`, `TOAST_MS`, `CHANGE_CONTEXT_
 - **Unresolved-comment navigation** (`u` on the Conversation tab) finds review
   threads via `.js-resolvable-timeline-thread-container` (fallback
   `.review-thread-component`) and treats a thread as resolved when it carries
-  `data-resolved="true"`. Resolved (collapsed) threads and plain discussion comments are
-  skipped, as are threads not yet rendered (e.g. hidden behind a "show resolved" control).
+  `data-resolved="true"`. Resolved threads and plain discussion comments are skipped.
   If a future GitHub upgrade changes the DOM, update `THREAD_SELECTORS` / `isThreadResolved`
   in `content.js`; a warning is logged (only on a Conversation page) when nothing matches.
+- **`u` reveals hidden threads as it walks them.** A busy PR hides timeline items behind
+  **"Load more"** (pagination) and **"Show N hidden items" / "Show outdated"** (collapsed
+  groups — where *outdated* review threads live, which can still be unresolved). When the
+  next thing below you in order is one of those controls rather than an unresolved thread,
+  `u` clicks it (showing a "Loading hidden comments…" toast) and continues once it renders,
+  so it never skips an unresolved thread — recent, paginated-away, or outdated. If GitHub's
+  DOM drifts, update `EXPAND_SELECTORS` / `EXPAND_TEXT` / `TIMELINE_SELECTORS` in `content.js`.
 - **`u` on a large, still-loading PR:** GitHub streams a big diff in batches, so the
   file holding the first unviewed change may not be in the DOM yet when you press `u`.
   Rather than wrongly report "All files viewed", the extension reads the total file
