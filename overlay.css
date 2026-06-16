@@ -87,6 +87,10 @@
   font-size: 12px;
 }
 
+.prks-help tr.dim td {
+  opacity: 0.35;
+}
+
 /* Brief highlight on a file header to show which file was just marked/un-marked.
    Inset box-shadow overlays a fading tint without fighting the header background. */
 @keyframes prks-flash-kf {

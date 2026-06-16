@@ -912,22 +912,25 @@
       helpEl = null;
       return;
     }
+    const onFiles = isPrFilesPage();
+    const onConversation = isPrConversationPage();
+    const d = (active) => active ? "" : ' class="dim"';
     helpEl = document.createElement("div");
     helpEl.className = "prks-help";
     helpEl.innerHTML = `
       <div class="prks-help__card">
         <h3>PR Review Shortcuts</h3>
         <table>
-          <tr><td><kbd>]</kbd></td><td>Next file</td></tr>
-          <tr><td><kbd>[</kbd></td><td>Previous file</td></tr>
-          <tr><td><kbd>j</kbd></td><td>Next change</td></tr>
-          <tr><td><kbd>k</kbd></td><td>Previous change</td></tr>
-          <tr><td><kbd>v</kbd></td><td>Mark file viewed &amp; advance</td></tr>
-          <tr><td><kbd>V</kbd></td><td>Mark all files in view viewed</td></tr>
-          <tr><td><kbd>b</kbd></td><td>Undo last mark (re-expand)</td></tr>
-          <tr><td><kbd>u</kbd></td><td>Next not-viewed file (Files) / next unresolved comment (Conversation)</td></tr>
-          <tr><td><kbd>g</kbd> <kbd>g</kbd></td><td>Jump to first file</td></tr>
-          <tr><td><kbd>G</kbd></td><td>Jump to last file</td></tr>
+          <tr${d(onFiles)}><td><kbd>]</kbd></td><td>Next file</td></tr>
+          <tr${d(onFiles)}><td><kbd>[</kbd></td><td>Previous file</td></tr>
+          <tr${d(onFiles)}><td><kbd>j</kbd></td><td>Next change</td></tr>
+          <tr${d(onFiles)}><td><kbd>k</kbd></td><td>Previous change</td></tr>
+          <tr${d(onFiles)}><td><kbd>v</kbd></td><td>Mark file viewed &amp; advance</td></tr>
+          <tr${d(onFiles)}><td><kbd>V</kbd></td><td>Mark all files in view viewed</td></tr>
+          <tr${d(onFiles)}><td><kbd>b</kbd></td><td>Undo last mark (re-expand)</td></tr>
+          <tr${d(onFiles || onConversation)}><td><kbd>u</kbd></td><td>Next not-viewed file (Files) / next unresolved comment (Conversation)</td></tr>
+          <tr${d(onFiles)}><td><kbd>g</kbd> <kbd>g</kbd></td><td>Jump to first file</td></tr>
+          <tr${d(onFiles)}><td><kbd>G</kbd></td><td>Jump to last file</td></tr>
           <tr><td><kbd>g</kbd> <kbd>c</kbd></td><td>Go to Conversation tab</td></tr>
           <tr><td><kbd>g</kbd> <kbd>m</kbd></td><td>Go to Commits tab</td></tr>
           <tr><td><kbd>g</kbd> <kbd>k</kbd></td><td>Go to Checks tab</td></tr>
@@ -1013,6 +1016,12 @@
     }
     lastG = 0;
 
+    if (k === KEYS.help) {
+      toggleHelp();
+      e.preventDefault();
+      return;
+    }
+
     // --- Conversation tab: walk unresolved comments in order (reuses 'u') ---
     if (isPrConversationPage()) {
       // The highlight and the in-progress reveal are 'u'-only affordances; any other
@@ -1066,9 +1075,6 @@
         break;
       case KEYS.lastFile:
         goToFile(getViewFiles().length - 1);
-        break;
-      case KEYS.help:
-        toggleHelp();
         break;
       default:
         return; // not ours — leave native behavior intact
