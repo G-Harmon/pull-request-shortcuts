@@ -1,5 +1,5 @@
 // GitHub PR Review Shortcuts — content script.
-// Adds keyboard-only navigation to the PR "Files changed" tab.
+// Adds keyboard-only navigation to the PR "Files changed" tab (and single-commit diffs).
 //
 // Injected on every page of the host so it's already present in the document
 // before GitHub's Turbo/pjax soft navigation lands on a PR (a content script is
@@ -44,12 +44,21 @@
   const TOAST_MS = 1200;
   const CHANGE_CONTEXT_LINES = 3; // context lines shown above a change jumped to with j/k
 
-  // Are we currently on a PR "Files changed" page? Checked live (not cached) so
-  // it tracks Turbo soft navigation between PR tabs. github.com's new pull-request
-  // experience serves this tab at /pull/N/changes; classic GitHub (and Enterprise) use
-  // /pull/N/files — accept both.
+  // Are we currently on a PR diff page? Checked live (not cached) so it tracks Turbo soft
+  // navigation between PR tabs. github.com's new pull-request experience serves the Files
+  // tab at /pull/N/changes; classic GitHub (and Enterprise) use /pull/N/files — accept both.
+  // Also accept a single-commit diff (/pull/N/commits/<sha>, reached by picking one commit
+  // from the "Changes from" dropdown): GitHub highlights the Commits tab there but renders
+  // the same per-file diff markup, so every file-navigation key applies.
   function isPrFilesPage() {
-    return /\/pull\/\d+\/(files|changes)\b/.test(location.pathname);
+    return /\/pull\/\d+\/(files|changes|commits\/[0-9a-f]+)\b/.test(location.pathname);
+  }
+
+  // A diff of a single commit (or commit range) within the PR rather than the whole PR:
+  // /pull/N/commits/<sha>, or /pull/N/files|changes/<sha1..sha2>. The Files tab's file
+  // counter describes the whole PR, so it doesn't apply here.
+  function isCommitDiffPage() {
+    return /\/pull\/\d+\/(commits\/[0-9a-f]+|(files|changes)\/[^/]+)/.test(location.pathname);
   }
 
   // Any PR tab (Conversation / Commits / Checks / Files). The tab chords work here;
@@ -754,8 +763,11 @@
 
   // Total files GitHub says this PR has, read from the Files tab counter. Returns
   // null if we can't read it — then we never claim the diff is "still loading",
-  // so behavior degrades to exactly today's.
+  // so behavior degrades to exactly today's. Also null on a single-commit / range diff:
+  // the counter is the whole PR's file count, which a single commit rarely matches, so
+  // comparing against it would report "still loading" forever.
   function expectedFileCount() {
+    if (isCommitDiffPage()) return null;
     const el =
       document.querySelector("#files_tab_counter") ||
       document.querySelector('.tabnav-tab[href*="/files"] .Counter');
@@ -837,6 +849,18 @@
         return;
       }
     }
+    // Some files have no "Viewed" control at all (GitHub omits it on parts of a
+    // single-commit diff). Marking is impossible, so `v` would otherwise just flash and
+    // re-scroll to the same file; instead behave like `]` and move on to the next file.
+    if (!viewedToggle(files[i])) {
+      if (i + 1 < files.length) {
+        goToFile(i + 1, "Can't mark this file viewed — skipped to next");
+        loadDeferredDiff(files[i + 1]);
+      } else {
+        toast("Can't mark this file viewed — last file");
+      }
+      return;
+    }
     if (markFileViewed(files[i])) recordMarks(files[i].id ? [files[i].id] : []);
     flash(files[i]);
     // The just-marked file collapses and the next unviewed file slides up into view —
@@ -862,10 +886,15 @@
       if (markFileViewed(f) && f.id) marked.push(f.id);
     });
     recordMarks(marked);
+    // Distinguish "every file is already viewed" from "no file here has a Viewed control"
+    // (a single-commit diff may have none), so the message isn't misleading.
+    const anyControl = files.some((f) => viewedToggle(f));
     toast(
       marked.length
         ? `Marked ${marked.length} file${marked.length === 1 ? "" : "s"} viewed`
-        : "Already all viewed"
+        : anyControl
+          ? "Already all viewed"
+          : "No files here can be marked viewed"
     );
   }
 

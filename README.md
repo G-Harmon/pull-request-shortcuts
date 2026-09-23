@@ -64,7 +64,10 @@ constant (plus `STICKY_OFFSET`, `CHORD_TIMEOUT_MS`, `TOAST_MS`, `CHANGE_CONTEXT_
   `chrome://extensions`, it's dropped).
 - **Two UIs supported.** github.com's new pull-request experience serves "Files changed"
   at `/pull/N/changes` with a new DOM; classic GitHub / Enterprise use `/pull/N/files`.
-  The extension matches both. On the new UI a file is `[role="region"][id^="diff-"]`, its
+  The extension matches both, and also a **single-commit diff** (`/pull/N/commits/<sha>`,
+  reached by picking one commit from the "Changes from" dropdown — GitHub highlights the
+  Commits tab there but renders the same file diffs). Files GitHub gives no "Viewed" control
+  on that view can't be marked; `v` skips past them. On the new UI a file is `[role="region"][id^="diff-"]`, its
   header is `[data-diff-header-wrapper]`, "Viewed" is an `aria-pressed` button, and a
   changed diff line is a `tr.diff-line-row` whose line-number cell lacks
   `diff-line-number-neutral`; classic selectors (`.file`, `input.js-reviewed-checkbox`,
