@@ -973,15 +973,16 @@
   }
 
   // --- Input guard --------------------------------------------------------
+  // <input> types that don't take typed text. Clicking a classic "Viewed" label focuses its
+  // checkbox (Chrome focuses a label's control on activation), so treating every INPUT as
+  // "typing" would leave the shortcuts dead right after `v`/`V`/`b` until focus moved.
+  const NON_TEXT_INPUT = /^(checkbox|radio|button|submit|reset|file|image|color|range)$/i;
+
   function isEditable(el) {
     if (!el) return false;
     const tag = el.tagName;
-    return (
-      tag === "INPUT" ||
-      tag === "TEXTAREA" ||
-      tag === "SELECT" ||
-      el.isContentEditable
-    );
+    if (tag === "INPUT") return !NON_TEXT_INPUT.test(el.type || "text");
+    return tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
   }
 
   function isTyping() {

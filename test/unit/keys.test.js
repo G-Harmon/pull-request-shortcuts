@@ -185,3 +185,16 @@ test("`g` `m` on a single-commit diff goes to the Commits list", () => {
   press(window, "m");
   assert.equal(clicked, 1);
 });
+
+test("a focused checkbox (as after clicking a Viewed label) does not block shortcuts", () => {
+  // Chrome focuses a label's control when the label is activated, so after `v` the classic
+  // Viewed checkbox holds focus. Only text-entry fields may swallow keys.
+  const { prks, window, document } = loadPage("classic-files.html", PR + "/files");
+  const a = prks.getFiles()[0];
+  layoutAsCurrent(prks, a);
+  document.querySelector("#diff-bbb input.js-reviewed-checkbox").focus();
+  assert.equal(document.activeElement.type, "checkbox");
+  const e = press(window, "v");
+  assert.equal(e.defaultPrevented, true);
+  assert.equal(checkbox(a).checked, true);
+});
