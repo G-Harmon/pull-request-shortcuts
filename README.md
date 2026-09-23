@@ -102,9 +102,12 @@ constant (plus `STICKY_OFFSET`, `CHORD_TIMEOUT_MS`, `TOAST_MS`, `CHANGE_CONTEXT_
 The extension has no build step; `package.json` exists only for the test tooling.
 
 ```sh
-npm install        # jsdom (unit tests)
-npm test           # unit tests: node's built-in runner + jsdom
-npm run check      # syntax-check the extension scripts
+npm install                      # jsdom + Playwright test runner
+npx playwright install chromium  # once: Playwright's Chromium build (browser tests)
+npm test                         # unit tests: node's built-in runner + jsdom (fast)
+npm run test:e2e                 # browser tests: real extension in real Chromium
+HEADED=1 npm run test:e2e        # ...and watch them
+npm run check                    # syntax-check the extension scripts
 ```
 
 - **Unit tests** (`test/unit/*.test.js`) load a fixture page into jsdom at a chosen URL,
@@ -116,6 +119,13 @@ npm run check      # syntax-check the extension scripts
   "Files changed" page, a classic single-commit diff, and github.com's new experience,
   built from the selectors `content.js` relies on. They are not saved copies of real
   pages; when GitHub's markup drifts, update the fixture and the selectors together.
+- **Browser tests** (`test/e2e/*.spec.js`, Playwright) load the unpacked extension into
+  Chromium exactly as a user would and serve the same fixtures at real `github.com` URLs via
+  request interception, so the manifest's content-script match injects `content.js` and
+  `overlay.css` untouched and no network request reaches GitHub. Real layout, smooth
+  scrolling, focus and `:target` behavior run for real — this tier caught a focus bug the
+  jsdom tier could not. It needs Playwright's own Chromium: branded Google Chrome ignores
+  `--load-extension` since Chrome 137, and the headless-shell build has no extension support.
 
 ## Scope
 

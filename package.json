@@ -6,9 +6,12 @@
   "scripts": {
     "test": "node --test \"test/unit/*.test.js\"",
     "test:unit": "node --test \"test/unit/*.test.js\"",
-    "check": "node --check content.js && node --check background.js && node --check popup.js"
+    "check": "node --check content.js && node --check background.js && node --check popup.js",
+    "test:e2e": "playwright test",
+    "test:all": "npm test && npm run test:e2e"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "jsdom": "^26.1.0"
   }
 }

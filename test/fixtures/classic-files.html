@@ -9,7 +9,17 @@
   comment containing a code-suggestion blob that must NOT count as a file.
 -->
 <html>
-<head><meta charset="utf-8"><title>classic files</title></head>
+<head><meta charset="utf-8"><title>classic files</title>  <style>
+    /* Real-browser tier only (jsdom has no layout): give files a diff-like height so
+       scrolling and "current file" geometry behave as on GitHub. */
+    /* Room below the last file so any file header can be scrolled up to the sticky line. */
+    body { margin: 0; padding-bottom: 100vh; font: 14px sans-serif; }
+    nav { height: 48px; }
+    .file, [role="region"] { min-height: 600px; margin: 0 16px 24px; border: 1px solid #ccc; }
+    .file-header, [data-diff-header-wrapper] { height: 40px; background: #eee; }
+    [hidden] { display: none; }
+  </style>
+</head>
 <body>
   <nav class="tabnav">
     <a class="tabnav-tab" href="/o/r/pull/7">Conversation</a>
