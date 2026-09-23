@@ -22,6 +22,8 @@ const SHA = "0123abcdef456";
 // Which fixture backs which PR URL. The commits *list* deliberately serves the same
 // single-commit markup so a test can prove the shortcuts stay inert there by URL alone.
 const ROUTES = [
+  // Sanitized real GitHub Enterprise page (see test/fixtures/real/).
+  [/\/pull\/87\/commits\/[0-9a-f]+$/, "real/ghe-classic-single-commit.html"],
   [/\/pull\/7\/commits\/[0-9a-f]+$/, "classic-commit.html"],
   [/\/pull\/7\/commits$/, "classic-commit.html"],
   [/\/pull\/7\/files$/, "classic-files.html"],
@@ -64,8 +66,8 @@ const test = base.extend({
 // Content scripts inject at document_idle, slightly after `load`, and a keypress that lands
 // before that is simply lost. The content script is in an isolated world (no `window.__prks`
 // visible to page.evaluate), so probe by toggling the help overlay until it responds.
-async function openPr(page, suffix) {
-  await page.goto(PR + suffix);
+async function openPr(page, suffix, base = PR) {
+  await page.goto(base + suffix);
   await expect
     .poll(
       async () => {
@@ -215,5 +217,35 @@ test.describe("new pull-request experience (/pull/N/changes)", () => {
     const highlighted = page.locator("tr.prks-change");
     await expect(highlighted).toHaveCount(2); // "+ added 1", "+ added 2"
     await expect(highlighted.first()).toContainText("added 1");
+  });
+});
+
+test.describe("real GitHub Enterprise single-commit page (sanitized capture)", () => {
+  const REAL_PR = "https://github.com/acme/sandbox/pull/87";
+  const REAL_SHA = "c511c45d8f512a3ea0f13c06fe01a3d63c2393fe";
+
+  test("`v` is handled and reports the file can't be marked (the original bug)", async ({
+    page,
+  }) => {
+    await openPr(page, `/commits/${REAL_SHA}`, REAL_PR);
+    // Plain `.file` also matches code-suggestion blobs inside the two review comments (which
+    // the extension excludes); real diff files carry data-tagsearch-path.
+    await expect(page.locator(".file[data-tagsearch-path]")).toHaveCount(1);
+    await expect(page.locator("input.js-reviewed-checkbox")).toHaveCount(0);
+    await page.keyboard.press("v");
+    await expect(toast(page)).toHaveText("Can't mark this file viewed — last file");
+  });
+
+  test("`j` highlights the first real change block", async ({ page }) => {
+    await openPr(page, `/commits/${REAL_SHA}`, REAL_PR);
+    await page.keyboard.press("j");
+    await expect(page.locator("tr.prks-change").first()).toBeVisible();
+  });
+
+  test("`g` `f` follows the Enterprise /files tab link", async ({ page }) => {
+    await openPr(page, `/commits/${REAL_SHA}`, REAL_PR);
+    await page.keyboard.press("g");
+    await page.keyboard.press("f");
+    await expect(page).toHaveURL(/\/pull\/87\/files$/);
   });
 });

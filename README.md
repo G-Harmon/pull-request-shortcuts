@@ -119,6 +119,14 @@ npm run check                    # syntax-check the extension scripts
   "Files changed" page, a classic single-commit diff, and github.com's new experience,
   built from the selectors `content.js` relies on. They are not saved copies of real
   pages; when GitHub's markup drifts, update the fixture and the selectors together.
+- **Real-page fixtures** (`test/fixtures/real/`) are actual GitHub pages saved from a browser
+  and sanitized: names, org, hostname, emails, CSRF tokens and nonces replaced, GitHub's
+  `<script>` tags removed, assets not included (so they render unstyled). They pin down what
+  the extension really met, e.g. that a GitHub Enterprise single-commit diff has no "Viewed"
+  checkbox. To add one: save a page ("Webpage, HTML only" is enough), edit the substitution table in
+  `test/fixtures/real/sanitize.py` and run it, then route the result in
+  `test/e2e/shortcuts.spec.js`. Check for leftover identifiers before committing
+  (`grep -ci <name> file.html` should print 0).
 - **Browser tests** (`test/e2e/*.spec.js`, Playwright) load the unpacked extension into
   Chromium exactly as a user would and serve the same fixtures at real `github.com` URLs via
   request interception, so the manifest's content-script match injects `content.js` and
