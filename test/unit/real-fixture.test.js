@@ -9,7 +9,7 @@ const { loadPage, press, toastText } = require("./helpers");
 
 const FIXTURE = "real/ghe-classic-single-commit.html";
 const URL =
-  "https://github.com/acme/sandbox/pull/87/commits/c511c45d8f512a3ea0f13c06fe01a3d63c2393fe";
+  "https://git.example.com/acme/sandbox/pull/87/commits/c511c45d8f512a3ea0f13c06fe01a3d63c2393fe";
 
 test("real GHE single-commit page: gated as a files page and a commit diff", () => {
   const { prks } = loadPage(FIXTURE, URL);

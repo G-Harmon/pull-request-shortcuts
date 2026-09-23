@@ -15,10 +15,12 @@ import sys
 
 # (real, replacement) — ordered, most specific first. Replace this table per capture.
 SUBS = [
-    # Hostname -> github.com so tab links resolve on the origin the tests intercept.
-    ("https://ghe.example.internal", "https://github.com"),
-    ("2Fghe.example.internal", "2Fgithub.com"),
-    ("ghe.example.internal", "github.com"),
+    # Hostname -> a placeholder. Use git.example.com for an Enterprise capture so it can't be
+    # mistaken for github.com; the extension matches tab links by pathname only, and the
+    # browser tests route both hosts.
+    ("https://ghe.company.internal", "https://git.example.com"),
+    ("2Fghe.company.internal", "2Fgit.example.com"),
+    ("ghe.company.internal", "git.example.com"),
     # People and company domains.
     ("some.person@company.com", "someone@example.com"),
     ("company.com", "example.com"),

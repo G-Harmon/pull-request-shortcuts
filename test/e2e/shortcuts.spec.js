@@ -53,6 +53,11 @@ const test = base.extend({
           : "<!doctype html><title>stub</title><p>stub page</p>",
       });
     });
+    // The real-page fixture's own links point at its placeholder Enterprise host. Serve a
+    // stub there so following one (e.g. `g f`) lands somewhere instead of hitting the network.
+    await context.route("https://git.example.com/**", (route) =>
+      route.fulfill({ contentType: "text/html", body: "<!doctype html><title>stub</title>" })
+    );
     await use(context);
     await context.close();
     fs.rmSync(userDataDir, { recursive: true, force: true });
@@ -221,6 +226,8 @@ test.describe("new pull-request experience (/pull/N/changes)", () => {
 });
 
 test.describe("real GitHub Enterprise single-commit page (sanitized capture)", () => {
+  // Opened at a github.com URL only because the manifest injects the content script there;
+  // the page itself is Enterprise markup whose links point at git.example.com.
   const REAL_PR = "https://github.com/acme/sandbox/pull/87";
   const REAL_SHA = "c511c45d8f512a3ea0f13c06fe01a3d63c2393fe";
 
