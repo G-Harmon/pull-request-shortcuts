@@ -1149,4 +1149,32 @@
   document.addEventListener("focusin", syncKeyListener, true);
   document.addEventListener("focusout", () => requestAnimationFrame(syncKeyListener), true);
   syncKeyListener(); // initial state
+
+  // --- Test hook ------------------------------------------------------------
+  // Internals for the unit tests in test/ (run against jsdom). Content scripts run in an
+  // isolated world, so this object is invisible to the page's own scripts.
+  window.__prks = {
+    KEYS,
+    STICKY_OFFSET,
+    isPrPage,
+    isPrFilesPage,
+    isPrConversationPage,
+    isCommitDiffPage,
+    filesTabSuffix,
+    getFiles,
+    getViewFiles,
+    fileHeader,
+    getCurrentIndex,
+    viewedToggle,
+    isFileViewed,
+    markFileViewed,
+    unmarkFileViewed,
+    isChangedRow,
+    changedRows,
+    expectedFileCount,
+    diffStillLoading,
+    getUnresolvedThreads,
+    markHistory,
+    onKeydown,
+  };
 })();

@@ -1,0 +1,55 @@
+<!doctype html>
+<!--
+  Hand-written stand-in for a classic GitHub single-commit diff inside a PR
+  (/pull/N/commits/<sha>, reached from the "Changes from" dropdown on Files changed).
+  Not a saved copy of a real page; see classic-files.html for the caveat.
+
+  What matters here:
+    - The Files tab counter (12) is the WHOLE PR's file count, but this commit touches
+      only three files. expectedFileCount() must ignore the counter on this page.
+    - File b has no "Viewed" control at all, as GitHub does for some files on this view.
+-->
+<html>
+<head><meta charset="utf-8"><title>classic single commit</title></head>
+<body>
+  <nav class="tabnav">
+    <a class="tabnav-tab" href="/o/r/pull/7">Conversation</a>
+    <a class="tabnav-tab selected" href="/o/r/pull/7/commits">Commits <span class="Counter">4</span></a>
+    <a class="tabnav-tab" href="/o/r/pull/7/checks">Checks</a>
+    <a class="tabnav-tab" href="/o/r/pull/7/files">Files changed
+      <span id="files_tab_counter" class="Counter" title="12">12</span></a>
+  </nav>
+
+  <div id="files">
+    <div class="file js-file js-targetable-element" id="diff-aaa" data-tagsearch-path="src/a.js">
+      <div class="file-header">
+        <span class="file-info">src/a.js</span>
+        <label class="js-reviewed-toggle"><input type="checkbox" class="js-reviewed-checkbox"> Viewed</label>
+      </div>
+      <table class="diff-table"><tbody>
+        <tr><td class="blob-num blob-num-addition"></td><td class="blob-code blob-code-addition">+ added</td></tr>
+      </tbody></table>
+    </div>
+
+    <div class="file js-file js-targetable-element" id="diff-bbb" data-tagsearch-path="src/b.js">
+      <div class="file-header">
+        <span class="file-info">src/b.js</span>
+        <!-- no Viewed control on this file -->
+      </div>
+      <table class="diff-table"><tbody>
+        <tr><td class="blob-num blob-num-deletion"></td><td class="blob-code blob-code-deletion">- removed</td></tr>
+      </tbody></table>
+    </div>
+
+    <div class="file js-file js-targetable-element" id="diff-ccc" data-tagsearch-path="src/c.js">
+      <div class="file-header">
+        <span class="file-info">src/c.js</span>
+        <label class="js-reviewed-toggle"><input type="checkbox" class="js-reviewed-checkbox"> Viewed</label>
+      </div>
+      <table class="diff-table"><tbody>
+        <tr><td class="blob-num blob-num-addition"></td><td class="blob-code blob-code-addition">+ added</td></tr>
+      </tbody></table>
+    </div>
+  </div>
+</body>
+</html>

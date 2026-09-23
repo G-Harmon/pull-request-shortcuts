@@ -97,6 +97,26 @@ constant (plus `STICKY_OFFSET`, `CHORD_TIMEOUT_MS`, `TOAST_MS`, `CHANGE_CONTEXT_
   be read and `u` falls back to its old immediate behavior — update the selector in
   `expectedFileCount()`.
 
+## Development / tests
+
+The extension has no build step; `package.json` exists only for the test tooling.
+
+```sh
+npm install        # jsdom (unit tests)
+npm test           # unit tests: node's built-in runner + jsdom
+npm run check      # syntax-check the extension scripts
+```
+
+- **Unit tests** (`test/unit/*.test.js`) load a fixture page into jsdom at a chosen URL,
+  inject `content.js` the way Chrome would, and drive it through `window.__prks` (a test
+  hook exposing the script's internals; content scripts run in an isolated world, so the
+  page never sees it) or by dispatching real `keydown` events. jsdom has no layout engine,
+  so tests give elements fake boxes with `layout()` from `test/unit/helpers.js`.
+- **Fixtures** (`test/fixtures/*.html`) are hand-written stand-ins for the classic
+  "Files changed" page, a classic single-commit diff, and github.com's new experience,
+  built from the selectors `content.js` relies on. They are not saved copies of real
+  pages; when GitHub's markup drifts, update the fixture and the selectors together.
+
 ## Scope
 
 Intentionally minimal: file navigation, mark-viewed, change highlighting, and

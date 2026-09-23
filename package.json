@@ -1,0 +1,14 @@
+{
+  "name": "pull-request-shortcuts",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Dev tooling for the GitHub PR Review Shortcuts extension (tests only; the extension itself has no build step).",
+  "scripts": {
+    "test": "node --test \"test/unit/*.test.js\"",
+    "test:unit": "node --test \"test/unit/*.test.js\"",
+    "check": "node --check content.js && node --check background.js && node --check popup.js"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}

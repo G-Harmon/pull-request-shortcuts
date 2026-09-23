@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+  Hand-written stand-in for github.com's new pull-request experience "Files changed" page
+  (/pull/N/changes), built from the selectors content.js relies on: each file is a
+  role="region" with an id of diff-<sha>, its header is [data-diff-header-wrapper], "Viewed"
+  is an aria-pressed toggle button, and diff rows are tr.diff-line-row whose line-number cell
+  carries diff-line-number-neutral only for context lines. Not a saved copy of a real page.
+
+  The inline script stands in for GitHub's React handler that flips aria-pressed on click.
+-->
+<html>
+<head><meta charset="utf-8"><title>new files</title></head>
+<body>
+  <nav>
+    <a href="/o/r/pull/7">Conversation</a>
+    <a href="/o/r/pull/7/commits">Commits</a>
+    <a href="/o/r/pull/7/checks">Checks</a>
+    <a href="/o/r/pull/7/changes">Files changed</a>
+  </nav>
+
+  <div role="region" id="diff-111" aria-label="src/a.js">
+    <div data-diff-header-wrapper>
+      <span>src/a.js</span>
+      <button type="button" aria-pressed="false" aria-label="Not Viewed">Viewed</button>
+    </div>
+    <table><tbody>
+      <tr class="diff-line-row"><td class="diff-hunk-cell" colspan="2">@@ -1,4 +1,5 @@</td></tr>
+      <tr class="diff-line-row"><td class="diff-line-number diff-line-number-neutral">1</td><td>context</td></tr>
+      <tr class="diff-line-row"><td class="diff-line-number diff-line-number-addition">2</td><td>+ added 1</td></tr>
+      <tr class="diff-line-row"><td class="diff-line-number diff-line-number-addition">3</td><td>+ added 2</td></tr>
+      <tr class="diff-line-row"><td class="diff-line-number diff-line-number-neutral">4</td><td>context</td></tr>
+      <tr class="diff-line-row"><td class="diff-line-number diff-line-number-deletion">5</td><td>- removed</td></tr>
+    </tbody></table>
+  </div>
+
+  <div role="region" id="diff-222" aria-label="src/b.js">
+    <div data-diff-header-wrapper>
+      <span>src/b.js</span>
+      <button type="button" aria-pressed="true" aria-label="Viewed">Viewed</button>
+    </div>
+    <table><tbody>
+      <tr class="diff-line-row"><td class="diff-line-number diff-line-number-addition">1</td><td>+ added</td></tr>
+    </tbody></table>
+  </div>
+
+  <div role="region" id="diff-333" aria-label="src/c.js" hidden>
+    <div data-diff-header-wrapper>
+      <span>src/c.js</span>
+      <button type="button" aria-pressed="false" aria-label="Not Viewed">Viewed</button>
+    </div>
+    <table><tbody>
+      <tr class="diff-line-row"><td class="diff-line-number diff-line-number-deletion">1</td><td>- removed</td></tr>
+    </tbody></table>
+  </div>
+
+  <script>
+    document.addEventListener("click", (e) => {
+      const b = e.target.closest("button[aria-pressed]");
+      if (!b) return;
+      const on = b.getAttribute("aria-pressed") !== "true";
+      b.setAttribute("aria-pressed", String(on));
+      b.setAttribute("aria-label", on ? "Viewed" : "Not Viewed");
+    });
+  </script>
+</body>
+</html>

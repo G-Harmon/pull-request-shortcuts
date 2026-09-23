@@ -1,0 +1,71 @@
+<!doctype html>
+<!--
+  Hand-written stand-in for a classic GitHub / Enterprise "Files changed" page, built from
+  the selectors content.js relies on (see FILE_SELECTORS, viewedToggle, CHANGED_CELL_SELECTOR).
+  It is NOT a saved copy of a real page. If GitHub's markup drifts, refresh both this
+  fixture and the selectors together.
+
+  Contents: three files (a: not viewed; b: viewed; c: hidden by a file filter) plus a review
+  comment containing a code-suggestion blob that must NOT count as a file.
+-->
+<html>
+<head><meta charset="utf-8"><title>classic files</title></head>
+<body>
+  <nav class="tabnav">
+    <a class="tabnav-tab" href="/o/r/pull/7">Conversation</a>
+    <a class="tabnav-tab" href="/o/r/pull/7/commits">Commits <span class="Counter">4</span></a>
+    <a class="tabnav-tab" href="/o/r/pull/7/checks">Checks</a>
+    <a class="tabnav-tab" href="/o/r/pull/7/files">Files changed
+      <span id="files_tab_counter" class="Counter" title="3">3</span></a>
+  </nav>
+
+  <textarea id="comment-box" placeholder="Leave a comment"></textarea>
+
+  <div id="files">
+    <div class="file js-file js-targetable-element" id="diff-aaa" data-tagsearch-path="src/a.js">
+      <div class="file-header">
+        <span class="file-info">src/a.js</span>
+        <label class="js-reviewed-toggle"><input type="checkbox" class="js-reviewed-checkbox"> Viewed</label>
+      </div>
+      <table class="diff-table"><tbody>
+        <tr><td class="blob-num"></td><td class="blob-code blob-code-context">context</td></tr>
+        <tr><td class="blob-num blob-num-addition"></td><td class="blob-code blob-code-addition">+ added 1</td></tr>
+        <tr><td class="blob-num blob-num-addition"></td><td class="blob-code blob-code-addition">+ added 2</td></tr>
+        <tr><td class="blob-num"></td><td class="blob-code blob-code-context">context</td></tr>
+        <tr><td class="blob-num blob-num-deletion"></td><td class="blob-code blob-code-deletion">- removed</td></tr>
+        <tr><td class="blob-num"></td><td class="blob-code blob-code-context">context</td></tr>
+      </tbody></table>
+    </div>
+
+    <div class="file js-file js-targetable-element" id="diff-bbb" data-tagsearch-path="src/b.js">
+      <div class="file-header">
+        <span class="file-info">src/b.js</span>
+        <label class="js-reviewed-toggle"><input type="checkbox" class="js-reviewed-checkbox" checked> Viewed</label>
+      </div>
+      <table class="diff-table"><tbody>
+        <tr><td class="blob-num blob-num-addition"></td><td class="blob-code blob-code-addition">+ added</td></tr>
+        <tr><td class="blob-num"></td><td class="blob-code blob-code-context">context</td></tr>
+      </tbody></table>
+    </div>
+
+    <div class="file js-file js-targetable-element" id="diff-ccc" data-tagsearch-path="src/c.js" hidden>
+      <div class="file-header">
+        <span class="file-info">src/c.js</span>
+        <label class="js-reviewed-toggle"><input type="checkbox" class="js-reviewed-checkbox"> Viewed</label>
+      </div>
+      <table class="diff-table"><tbody>
+        <tr><td class="blob-num blob-num-deletion"></td><td class="blob-code blob-code-deletion">- removed</td></tr>
+      </tbody></table>
+    </div>
+
+    <div class="review-comment">
+      <div class="comment-body">
+        <p>Suggestion:</p>
+        <div class="blob-wrapper data file">
+          <table><tbody><tr><td class="blob-code blob-code-addition">+ suggested</td></tr></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
